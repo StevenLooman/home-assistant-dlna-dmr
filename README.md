@@ -19,3 +19,6 @@ Replace `http://192.168.178.71:9197/dmr` with the URL to the UPnP description XM
 - Still in development, YMMV!
 - Feedback/testing is appreciated!
 - I'll create a pull request for automatic discovery to `netdisco` as soon as this component is more mature.
+
+# License
+Licensed under Apache 2.0.
