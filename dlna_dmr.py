@@ -2,7 +2,6 @@
 Support for DLNA DMR (Device Media Renderer)
 Most likely your TV
 """
-import aiohttp
 import asyncio
 import functools
 import logging
@@ -11,6 +10,7 @@ import urllib.parse
 import xml.etree.ElementTree as ET
 from datetime import timedelta
 
+import aiohttp
 import async_timeout
 import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
@@ -59,9 +59,17 @@ _LOGGER = logging.getLogger(__name__)
 # region Decorators
 def requires_connection(default=None):
     """Return default if DlnaDmrDevice is not connected."""
+
     def call_wrapper(func):
+        """Call wrapper for decorator"""
+
         @functools.wraps(func)
         def wrapper(self, *args, **kwargs):
+            """
+            Require device is connected.
+            If device is not connected, None is returned.
+            """
+
             # _LOGGER.debug('needs_connection(): %s.%s', self, func.__name__)
             if not self.is_connected():
                 # _LOGGER.debug('needs_connection(): %s.%s: not connected', self, func.__name__)
@@ -73,18 +81,29 @@ def requires_connection(default=None):
 
 def requires_action(service_name, action_name, value_not_connected=None):
     """Raise NotImplemented() if connected but service/action not available."""
+
     def call_wrapper(func):
+        """Call wrapper for decorator"""
+
         @functools.wraps(func)
         def wrapper(self, *args, **kwargs):
+            """
+            Require device is connected and has service/action.
+            If device is not connected, value_not_connected is returned.
+            """
+
             # _LOGGER.debug('needs_action(): %s.%s', self, func.__name__)
             if not self.is_connected():
                 # _LOGGER.debug('needs_action(): %s.%s: not connected', self, func.__name__)
                 return value_not_connected
 
+            # pylint: disable=protected-access
             if service_name not in self._services:
-                _LOGGER.error('requires_action(): %s.%s: no service: %s', self, func.__name__, service_name)
+                _LOGGER.error('requires_action(): %s.%s: no service: %s',
+                              self, func.__name__, service_name)
                 raise NotImplementedError()
 
+            # pylint: disable=protected-access
             service = self._services[service_name]
             action = service.action(action_name)
             if not action:
@@ -100,18 +119,29 @@ def requires_action(service_name, action_name, value_not_connected=None):
 
 def requires_state_variable(service_name, state_variable_name, value_not_connected=None):
     """Raise NotImplemented() if connected but service/state_variable not available."""
+
     def call_wrapper(func):
+        """Call wrapper for decorator."""
+
         @functools.wraps(func)
         def wrapper(self, *args, **kwargs):
+            """
+            Require device is connected and has service/state_variable.
+            If device is not connected, value_not_connected is returned.
+            """
+
             # _LOGGER.debug('needs_service(): %s.%s', self, func.__name__)
             if not self.is_connected():
                 # _LOGGER.debug('needs_service(): %s.%s: not connected', self, func.__name__)
                 return value_not_connected
 
+            # pylint: disable=protected-access
             if service_name not in self._services:
-                _LOGGER.error('requires_state_variable(): %s.%s: no service: %s', self, func.__name__, service_name)
+                _LOGGER.error('requires_state_variable(): %s.%s: no service: %s',
+                              self, func.__name__, service_name)
                 raise NotImplementedError()
 
+            # pylint: disable=protected-access
             service = self._services[service_name]
             state_var = service.state_variable(state_variable_name)
             if not state_var:
@@ -136,8 +166,8 @@ def setup_platform(hass: HomeAssistant, config, add_devices, discovery_info=None
         url = discovery_info['ssdp_description']
         name = discovery_info['name']
 
-    # XXX TODO: only once, guard by Lock?
     def start_notify_view():
+        """Register notify view."""
         _LOGGER.debug('start_notify_view()')
 
         if 'notify_view' in hass.data.get(__name__, {}):
@@ -157,7 +187,10 @@ def setup_platform(hass: HomeAssistant, config, add_devices, discovery_info=None
     add_devices([device])
 
 
+# pylint: disable=abstract-method,too-many-public-methods
 class UpnpNotifyView(HomeAssistantView):
+    """Callback view for UPnP NOTIFY messages"""
+
     url = '/api/dlna_dmr.notify'
     name = 'api:dlna_dmr.notify'
     requires_auth = False
@@ -173,6 +206,7 @@ class UpnpNotifyView(HomeAssistantView):
 
     @asyncio.coroutine
     def async_notify(self, request):
+        """Callback method for NOTIFY requests."""
         _LOGGER.debug('%s.async_notify(): request: %s', self, request)
 
         if 'SID' not in request.headers:
@@ -193,15 +227,21 @@ class UpnpNotifyView(HomeAssistantView):
 
     @property
     def callback_url(self):
+        """Full URL to be called by device/service."""
         return urllib.parse.urljoin(self._hass_base_url, UpnpNotifyView.url)
 
     def register_service(self, sid, service):
+        """
+        Register a UpnpService under SID.
+        To be called from UpnpService.async_subscribe().
+        """
         if sid in self._registered_services:
             raise RuntimeError('SID {} already registered.'.format(sid))
 
         self._registered_services[sid] = service
 
     def unregister_service(self, sid):
+        """Unregister service by SID."""
         if sid in self._registered_services:
             del self._registered_services[sid]
 
@@ -229,6 +269,10 @@ class DlnaDmrDevice(MediaPlayerDevice):
 
     @asyncio.coroutine
     def async_connect(self):
+        """
+        Connect to device.
+        This intializes all UpnpServices.
+        """
         _LOGGER.debug('%s.async_connect()', self)
         if self._services:
             _LOGGER.debug('%s.async_connect(): already connected', self)
@@ -237,14 +281,19 @@ class DlnaDmrDevice(MediaPlayerDevice):
         yield from self._async_init_services()
 
     def is_connected(self):
+        """Device connected?"""
         # _LOGGER.debug('%s.is_connected(): %s', self, bool(self._services))
         return bool(self._services)
 
     @asyncio.coroutine
     def async_disconnect(self):
+        """
+        Disconnect from device.
+        This removes all UpnpServices.
+        """
         _LOGGER.debug('%s.async_disconnect()', self)
 
-        for key, service in self._services.items():
+        for service in self._services.values():
             sid = service.subscription_sid
             if sid:
                 self._callback_view.unregister_service(sid)
@@ -266,15 +315,20 @@ class DlnaDmrDevice(MediaPlayerDevice):
         factory = UpnpFactory(self.hass)
         try:
             name, services = yield from factory.async_create_services(self._url)
-        except Exception as e:
-            _LOGGER.debug('%s._init_services(): caught exception: %s', self, e)
+        except Exception as ex:
+            _LOGGER.debug('%s._init_services(): caught exception: %s', self, ex)
             self._services = {}
             return
 
+        if self.name is None:
+            self._name = name
+
         # find required services
         self._services = {
-            'RC': next(s for s in services if s.service_type == 'urn:schemas-upnp-org:service:RenderingControl:1'),
-            'CM': next(s for s in services if s.service_type == 'urn:schemas-upnp-org:service:ConnectionManager:1'),
+            'RC': next(s for s in services
+                       if s.service_type == 'urn:schemas-upnp-org:service:RenderingControl:1'),
+            'CM': next(s for s in services
+                       if s.service_type == 'urn:schemas-upnp-org:service:ConnectionManager:1'),
         }
 
         # find optional services
@@ -306,16 +360,19 @@ class DlnaDmrDevice(MediaPlayerDevice):
         # call GetTransportInfo/GetPositionInfo regularly
         try:
             if 'AVT' in self._services:
+                # pylint: disable=no-value-for-parameter
                 state = yield from self._async_poll_transport_info()
 
                 if state == STATE_PLAYING or state == STATE_PAUSED:
+                    # pylint: disable=no-value-for-parameter
                     yield from self._async_poll_position_info()
-        except (asyncio.TimeoutError, aiohttp.ClientError) as e:
+        except (asyncio.TimeoutError, aiohttp.ClientError):
             # be graceful, don't spam the error log when this is expected
             yield from self.async_disconnect()
 
     @asyncio.coroutine
     @requires_action('AVT', 'GetTransportInfo')
+    # pylint: disable=arguments-differ
     def _async_poll_transport_info(self, service, action):
         """Update transport info from device."""
         _LOGGER.debug('%s._async_poll_transport_info()', self)
@@ -334,6 +391,7 @@ class DlnaDmrDevice(MediaPlayerDevice):
 
     @asyncio.coroutine
     @requires_action('AVT', 'GetPositionInfo')
+    # pylint: disable=arguments-differ
     def _async_poll_position_info(self, service, action):
         """Update position info"""
         _LOGGER.debug('%s._async_poll_position_info()', self)
@@ -350,6 +408,7 @@ class DlnaDmrDevice(MediaPlayerDevice):
         self.on_state_variable_change(service, [track_duration, time_position])
 
     def on_state_variable_change(self, service, state_variables):
+        """State variable(s) changed, let homeassistant know"""
         self.schedule_update_ha_state()
 
     @property
@@ -394,6 +453,7 @@ class DlnaDmrDevice(MediaPlayerDevice):
 
     @property
     @requires_state_variable('RC', 'Volume')
+    # pylint: disable=arguments-differ
     def volume_level(self, service, state_variable):
         """Volume level of the media player (0..1)."""
         value = state_variable.value
@@ -407,6 +467,7 @@ class DlnaDmrDevice(MediaPlayerDevice):
 
     @asyncio.coroutine
     @requires_action('RC', 'SetVolume')
+    # pylint: disable=arguments-differ
     def async_set_volume_level(self, service, action, volume):
         """Set volume level, range 0..1."""
         _LOGGER.debug('%s.async_set_volume_level(): %s', self, volume)
@@ -421,19 +482,24 @@ class DlnaDmrDevice(MediaPlayerDevice):
 
     @property
     @requires_state_variable('RC', 'Mute')
+    # pylint: disable=arguments-differ
     def is_volume_muted(self, service, state_variable):
         """Boolean if volume is currently muted."""
         return state_variable.value
 
     @asyncio.coroutine
     @requires_action('RC', 'SetMute')
+    # pylint: disable=arguments-differ
     def async_mute_volume(self, service, action, mute):
         """Mute the volume."""
+        _LOGGER.debug('%s.async_mute_volume(): %s', self, mute)
+
         desired_mute = bool(mute)
         yield from service.async_call_action(action, InstanceID=0, Channel='Master', DesiredMute=desired_mute)
 
     @asyncio.coroutine
     @requires_action('AVT', 'Pause')
+    # pylint: disable=arguments-differ
     def async_media_pause(self, service, action):
         """Send pause command."""
         _LOGGER.debug('%s.async_media_pause()', self)
@@ -442,6 +508,7 @@ class DlnaDmrDevice(MediaPlayerDevice):
 
     @asyncio.coroutine
     @requires_action('AVT', 'Play')
+    # pylint: disable=arguments-differ
     def async_media_play(self, service, action):
         """Send play command."""
         _LOGGER.debug('%s.async_media_play()', self)
@@ -450,6 +517,7 @@ class DlnaDmrDevice(MediaPlayerDevice):
 
     @asyncio.coroutine
     @requires_action('AVT', 'Stop')
+    # pylint: disable=arguments-differ
     def async_media_stop(self, service, action):
         """Send stop command."""
         _LOGGER.debug('%s.async_media_stop()', self)
@@ -458,6 +526,7 @@ class DlnaDmrDevice(MediaPlayerDevice):
 
     @asyncio.coroutine
     @requires_action('AVT', 'Previous')
+    # pylint: disable=arguments-differ
     def async_media_previous_track(self, service, action):
         """Send previous track command."""
         _LOGGER.debug('%s.async_media_previous_track()', self)
@@ -466,6 +535,7 @@ class DlnaDmrDevice(MediaPlayerDevice):
 
     @asyncio.coroutine
     @requires_action('AVT', 'Next')
+    # pylint: disable=arguments-differ
     def async_media_next_track(self, service, action):
         """Send next track command."""
         _LOGGER.debug('%s.async_media_next_track()', self)
@@ -474,7 +544,8 @@ class DlnaDmrDevice(MediaPlayerDevice):
 
     @property
     @requires_state_variable('AVT', 'CurrentTrackMetaData')
-    def media_title(self, service, state_variable):
+    # pylint: disable=arguments-differ
+    def media_title(self, _, state_variable):
         """Title of current playing media."""
         xml = state_variable.value
         if not xml:
@@ -489,6 +560,7 @@ class DlnaDmrDevice(MediaPlayerDevice):
 
     @property
     @requires_state_variable('AVT', 'CurrentTrackMetaData')
+    # pylint: disable=arguments-differ
     def media_image_url(self, service, state_variable):
         """Image url of current playing media."""
         xml = state_variable.value
@@ -528,6 +600,7 @@ class DlnaDmrDevice(MediaPlayerDevice):
 
     @property
     @requires_state_variable('AVT', 'CurrentTrackDuration')
+    # pylint: disable=arguments-differ
     def media_duration(self, service, state_variable):
         """Duration of current playing media in seconds."""
         if state_variable is None or state_variable.value is None:
@@ -539,6 +612,7 @@ class DlnaDmrDevice(MediaPlayerDevice):
 
     @property
     @requires_state_variable('AVT', 'RelativeTimePosition')
+    # pylint: disable=arguments-differ
     def media_position(self, service, state_variable):
         """Position of current playing media in seconds."""
         if state_variable is None or state_variable.value is None:
@@ -550,6 +624,7 @@ class DlnaDmrDevice(MediaPlayerDevice):
 
     @property
     @requires_state_variable('AVT', 'RelativeTimePosition')
+    # pylint: disable=arguments-differ
     def media_position_updated_at(self, service, state_variable):
         """When was the position of the current playing media valid.
 
@@ -588,52 +663,65 @@ class UpnpService(object):
 
     @property
     def service_type(self):
+        """Get service type for this UpnpService."""
         return self._service_description['service_type']
 
     @property
     def service_id(self):
+        """Get service ID for this UpnpService."""
         return self._service_description['service_id']
 
     @property
     def scpd_url(self):
+        """Get full SCPD-url for this UpnpService."""
         return urllib.parse.urljoin(self._device_url, self._service_description['scpd_url'])
 
     @property
     def control_url(self):
+        """Get full control-url for this UpnpService."""
         return urllib.parse.urljoin(self._device_url, self._service_description['control_url'])
 
     @property
     def event_sub_url(self):
+        """Get full event sub-url for this UpnpService."""
         return urllib.parse.urljoin(self._device_url, self._service_description['event_sub_url'])
 
     @property
     def state_variables(self):
+        """Get All UpnpStateVariables for this UpnpService."""
         return self._state_variables
 
     def state_variable(self, name):
+        """Get UPnpStateVariable by name."""
         return self.state_variables.get(name, None)
 
     @property
     def actions(self):
+        """Get All UpnpActions for this UpnpService."""
         return self._actions
 
     def action(self, name):
+        """Get UPnpAction by name."""
         return self.actions.get(name, None)
 
     @asyncio.coroutine
     def async_call_action(self, action, **kwargs):
+        """
+        Call a UpnpAction.
+        Parameters are in Python-values and coerced automatically to UPnP values.
+        """
         if isinstance(action, str):
             action = self.actions[action]
 
         _LOGGER.debug('Calling action: %s', action.name)
         # build request
         headers, body = action.create_request(self.control_url, self.service_type, **kwargs)
-        _LOGGER.debug('Request_body: %s', body)
+        # _LOGGER.debug('Request_body: %s', body)
 
         # do request
         status_code, response_headers, response_body =\
             yield from self._async_do_http_request('POST', self.control_url, headers, body)
-        _LOGGER.debug('Status: %s Response_body: %s', status_code, response_body)
+        # _LOGGER.debug('Status: %s Response_body: %s', status_code, response_body)
 
         if status_code != 200:
             raise RuntimeError('Error during call_action')
@@ -649,18 +737,20 @@ class UpnpService(object):
             with async_timeout.timeout(5, loop=self.hass.loop):
                 response = yield from websession.request(method, url, headers=headers, data=body)
                 response_body = yield from response.text()
-        except (asyncio.TimeoutError, aiohttp.ClientError) as e:
-            _LOGGER.debug("Error in %s.async_call_action(): %s", self, e)
+        except (asyncio.TimeoutError, aiohttp.ClientError) as ex:
+            _LOGGER.debug("Error in %s.async_call_action(): %s", self, ex)
             raise
 
         return response.status, response.headers, response_body
 
     @property
     def subscription_sid(self):
+        """Return our current subscription ID for events."""
         return self._subscription_sid
 
     @asyncio.coroutine
     def async_subscribe(self, callback_uri):
+        """SUBSCRIBE for events on StateVariables."""
         if self._subscription_sid:
             raise RuntimeError('Already subscribed, unsubscribe first')
 
@@ -687,6 +777,7 @@ class UpnpService(object):
 
     @asyncio.coroutine
     def async_unsubscribe(self, force=False):
+        """UNSUBSCRIBE from events on StateVariables."""
         if not force and not self._subscription_sid:
             raise RuntimeError('Cannot unsubscribed, subscribe first')
 
@@ -700,8 +791,8 @@ class UpnpService(object):
             'SID': subscription_sid,
         }
         try:
-            response_status, response_headers, _ = yield from self._async_do_http_request('UNSUBSCRIBE', self.event_sub_url, headers, '')
-        except (asyncio.TimeoutError, aiohttp.ClientError) as e:
+            response_status, _, _ = yield from self._async_do_http_request('UNSUBSCRIBE', self.event_sub_url, headers, '')
+        except (asyncio.TimeoutError, aiohttp.ClientError):
             if not force:
                 raise
             return
@@ -713,6 +804,10 @@ class UpnpService(object):
         self._subscription_sid = None
 
     def on_notify(self, headers, body):
+        """
+        Callback for UpnpNotifyView.
+        Parses the headers/body and sets UpnpStateVariables with new values.
+        """
         notify_sid = headers.get('SID')
         if notify_sid != self._subscription_sid:
             # _LOGGER.debug('Received NOTIFY for unknown SID: %s, known SID: %s', notify_sid, self._subscription_sid)
@@ -744,16 +839,19 @@ class UpnpService(object):
         self.notify_changed_state_variables(changed_state_variables)
 
     def notify_changed_state_variables(self, changed_state_variables):
+        """Callback on UpnpStateVariable.value changes."""
         if self._on_state_variable_change:
             self._on_state_variable_change(self, changed_state_variables)
 
     @property
     def on_state_variable_change(self):
+        """Get callback for value changes."""
         return self._on_state_variable_change
 
     @on_state_variable_change.setter
-    def on_state_variable_change(self, on_state_variable_change_callback):
-        self._on_state_variable_change = on_state_variable_change_callback
+    def on_state_variable_change(self, callback):
+        """Set callback for value changes."""
+        self._on_state_variable_change = callback
 
     def __str__(self):
         return "<UpnpService({0})>".format(self.service_id)
@@ -772,31 +870,39 @@ class UpnpAction(object):
             self.name = name
             self.direction = direction
             self.related_state_variable = related_state_variable
+            self._value = None
 
         def validate_value(self, value):
+            """Validate value against related UpnpStateVariable."""
             self.related_state_variable.validate_value(value)
 
         @property
         def value(self):
+            """Get Python value for this argument."""
             return self._value
 
         @value.setter
         def value(self, value):
-            self.related_state_variable.validate_value(value)
+            """Set Python value for this argument."""
+            self.validate_value(value)
             self._value = value
 
         @property
         def upnp_value(self):
+            """Get UPnP value for this argument."""
             return self.coerce_upnp(self.value)
 
         @upnp_value.setter
         def upnp_value(self, upnp_value):
+            """Set UPnP value for this argument."""
             self._value = self.coerce_python(upnp_value)
 
         def coerce_python(self, upnp_value):
+            """Coerce UPnP value to Python."""
             return self.related_state_variable.coerce_python(upnp_value)
 
         def coerce_upnp(self, value):
+            """Coerce Python value to UPnP value."""
             return self.related_state_variable.coerce_upnp(value)
 
     def __init__(self, name, args):
@@ -805,6 +911,7 @@ class UpnpAction(object):
 
     @property
     def name(self):
+        """Get name of this UpnpAction."""
         return self._name
 
     def __str__(self):
@@ -818,12 +925,15 @@ class UpnpAction(object):
             arg.validate_value(value)
 
     def in_arguments(self):
+        """Get all in-arguments."""
         return [arg for arg in self._args if arg.direction == 'in']
 
     def out_arguments(self):
+        """Get all out-arguments."""
         return [arg for arg in self._args if arg.direction == 'out']
 
     def argument(self, name, direction=None):
+        """Get an UpnpAction.Argument by name (and possibliy direction.)"""
         for arg in self._args:
             if arg.name != name:
                 continue
@@ -833,6 +943,7 @@ class UpnpAction(object):
             return arg
 
     def create_request(self, control_url, service_type, **kwargs):
+        """Create headers and headers for this to-be-called UpnpAction."""
         # construct SOAP body
         service_ns = service_type
         soap_args = self._format_request_args(**kwargs)
@@ -857,13 +968,13 @@ class UpnpAction(object):
         return headers, body
 
     def _format_request_args(self, **kwargs):
-        # XXX TODO: coerce arguments to upnp values
         self.validate_arguments(**kwargs)
-        a = ["<{0}>{1}</{0}>".format(arg.name, arg.coerce_upnp(kwargs[arg.name]))
-             for arg in self.in_arguments()]
-        return "\n".join(a)
+        arg_strs = ["<{0}>{1}</{0}>".format(arg.name, arg.coerce_upnp(kwargs[arg.name])) for arg in self.in_arguments()]
+        return "\n".join(arg_strs)
 
+    # pylint: disable=unused-argument
     def parse_response(self, service_type, response_headers, response_body):
+        """Parse response from called Action."""
         xml = ET.fromstring(response_body)
 
         query = './/soap_envelope:Body/soap_envelope:Fault'
@@ -899,6 +1010,7 @@ class UpnpStateVariable(object):
 
     @property
     def min_value(self):
+        """Min value for this UpnpStateVariable, if defined."""
         type_info = self._state_variable_info['type_info']
         data_type = type_info['data_type_python']
         min_ = type_info.get('allowed_value_range', {}).get('min')
@@ -907,6 +1019,7 @@ class UpnpStateVariable(object):
 
     @property
     def max_value(self):
+        """Max value for this UpnpStateVariable, if defined."""
         type_info = self._state_variable_info['type_info']
         data_type = type_info['data_type_python']
         max_ = type_info.get('allowed_value_range', {}).get('max')
@@ -915,22 +1028,27 @@ class UpnpStateVariable(object):
 
     @property
     def allowed_values(self):
+        """List with allowed values for this UpnpStateVariable, if defined."""
         return self._state_variable_info['type_info'].get('allowed_values', [])
 
     @property
     def send_events(self):
+        """Does this UpnpStatevariable send events?"""
         return self._state_variable_info['send_events']
 
     @property
     def name(self):
+        """Name of the UpnpStatevariable."""
         return self._state_variable_info['name']
 
     @property
     def data_type(self):
+        """Python datatype of UpnpStateVariable."""
         return self._state_variable_info['type_info']['data_type']
 
     @property
     def default_value(self):
+        """Default value for UpnpStateVariable, if defined."""
         data_type = self._state_variable_info['type_info']['data_type_python']
         default_value = self._state_variable_info['type_info'].get('default_value', None)
         if default_value:
@@ -978,6 +1096,7 @@ class UpnpStateVariable(object):
 
     @property
     def updated_at(self):
+        """Get timestamp at which this UpnpStateVariable was updated."""
         return self._updated_at
 
     def __str__(self):
@@ -985,6 +1104,7 @@ class UpnpStateVariable(object):
 
 
 class UpnpFactory(object):
+    """Factory for UpnpService and friends."""
 
     STATE_VARIABLE_TYPE_MAPPING = {
         'i2': int,
@@ -1000,6 +1120,7 @@ class UpnpFactory(object):
 
     @asyncio.coroutine
     def async_create_services(self, url):
+        """Retrieve URL and create all defined services."""
         _LOGGER.debug('%s.async_create_services(): %s', self, url)
         root = yield from self._async_fetch_device_description(url)
 
@@ -1016,12 +1137,14 @@ class UpnpFactory(object):
 
     @asyncio.coroutine
     def async_create_service(self, service_description_xml, base_url):
+        """Retrieve the SCPD for a service and create a UpnpService from it."""
         scpd_url = service_description_xml.find('device:SCPDURL', NS).text
         scpd_url = urllib.parse.urljoin(base_url, scpd_url)
         scpd_xml = yield from self._async_fetch_scpd(scpd_url)
         return self.create_service(service_description_xml, base_url, scpd_xml)
 
     def create_service(self, service_description_xml, base_url, scpd_xml):
+        """Create a UnpnpService, with UpnpActions and UpnpStateVariables from scpd_xml."""
         service_description = self._service_parse_xml(service_description_xml)
         state_vars = self.create_state_variables(scpd_xml)
         actions = self.create_actions(scpd_xml, state_vars)
@@ -1038,6 +1161,7 @@ class UpnpFactory(object):
         }
 
     def create_state_variables(self, scpd_xml):
+        """Create UpnpStateVariables from scpd_xml."""
         state_vars = {}
         for state_var_xml in scpd_xml.findall('.//service:stateVariable', NS):
             state_var = self.create_state_variable(state_var_xml)
@@ -1045,6 +1169,7 @@ class UpnpFactory(object):
         return state_vars
 
     def create_state_variable(self, state_variable_xml):
+        """Create UpnpStateVariable from state_variable_xml"""
         state_variable_info = self._state_variable_parse_xml(state_variable_xml)
         type_info = state_variable_info['type_info']
         schema = self._state_variable_create_schema(type_info)
@@ -1116,6 +1241,7 @@ class UpnpFactory(object):
         return vol.Schema({key: vol.All(*validators)})
 
     def create_actions(self, scpd_xml, state_variables):
+        """Create UpnpActions from scpd_xml."""
         actions = {}
         for action_xml in scpd_xml.findall('.//service:action', NS):
             action = self.create_action(action_xml, state_variables)
@@ -1123,6 +1249,7 @@ class UpnpFactory(object):
         return actions
 
     def create_action(self, action_xml, state_variables):
+        """Create a UpnpAction from action_xml."""
         action_info = self._action_parse_xml(action_xml, state_variables)
         args = [UpnpAction.Argument(arg_info['name'], arg_info['direction'], arg_info['state_variable'])
                 for arg_info in action_info['arguments']]
@@ -1150,8 +1277,8 @@ class UpnpFactory(object):
             with async_timeout.timeout(10, loop=self.hass.loop):
                 response = yield from websession.get(url)
                 response_body = yield from response.text()
-        except (asyncio.TimeoutError, aiohttp.ClientError) as e:
-            _LOGGER.debug("Error for UpnpServiceFactory._async_fetch_scpd(): %s", e)
+        except (asyncio.TimeoutError, aiohttp.ClientError) as ex:
+            _LOGGER.debug("Error for UpnpServiceFactory._async_fetch_scpd(): %s", ex)
             raise
         return response_body
 
