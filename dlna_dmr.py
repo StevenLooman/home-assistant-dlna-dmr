@@ -37,7 +37,7 @@ CONF_MAX_VOLUME = 'max_volume'
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
     vol.Required(CONF_URL): cv.string,
-    vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string,
+    vol.Optional(CONF_NAME): cv.string,
     vol.Optional(CONF_MAX_VOLUME): cv.positive_int,
 })
 
@@ -187,7 +187,7 @@ def setup_platform(hass: HomeAssistant, config, add_devices, discovery_info=None
     add_devices([device])
 
 
-# pylint: disable=abstract-method,too-many-public-methods
+# pylint: disable=abstract-method
 class UpnpNotifyView(HomeAssistantView):
     """Callback view for UPnP NOTIFY messages"""
 
@@ -246,6 +246,7 @@ class UpnpNotifyView(HomeAssistantView):
             del self._registered_services[sid]
 
 
+# pylint: disable=too-many-public-methods
 class DlnaDmrDevice(MediaPlayerDevice):
     """Representation of a DLNA DMR device."""
 
@@ -320,7 +321,7 @@ class DlnaDmrDevice(MediaPlayerDevice):
             self._services = {}
             return
 
-        if self.name is None:
+        if self.name is None or self.name == DEFAULT_NAME:
             self._name = name
 
         # find required services
