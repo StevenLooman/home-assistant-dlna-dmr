@@ -5,8 +5,7 @@ import xml.etree.ElementTree as ET
 from tests.common import (
     get_test_home_assistant, mock_coro)
 
-from dlna_dmr import UpnpFactory
-
+from upnp_client import UpnpFactory
 
 NS = {
     'device': 'urn:schemas-upnp-org:device-1-0',
