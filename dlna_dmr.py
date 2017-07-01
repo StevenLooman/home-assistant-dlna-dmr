@@ -187,7 +187,6 @@ def setup_platform(hass: HomeAssistant, config, add_devices, discovery_info=None
     add_devices([device])
 
 
-# pylint: disable=abstract-method
 class UpnpNotifyView(HomeAssistantView):
     """Callback view for UPnP NOTIFY messages"""
 
@@ -246,7 +245,6 @@ class UpnpNotifyView(HomeAssistantView):
             del self._registered_services[sid]
 
 
-# pylint: disable=too-many-public-methods
 class DlnaDmrDevice(MediaPlayerDevice):
     """Representation of a DLNA DMR device."""
 
@@ -264,7 +262,7 @@ class DlnaDmrDevice(MediaPlayerDevice):
     @asyncio.coroutine
     def _async_on_hass_stop(self, event):
         """Event handler on HASS stop."""
-        _LOGGER.debug('%s._on_hass_stop()', self)
+        _LOGGER.debug('%s._on_hass_stop(): %s', self, event)
         # UNSUBSCRIBE all services
         yield from self.async_disconnect()
 
@@ -316,7 +314,7 @@ class DlnaDmrDevice(MediaPlayerDevice):
         factory = UpnpFactory(self.hass)
         try:
             name, services = yield from factory.async_create_services(self._url)
-        except Exception as ex:
+        except Exception as ex:  # pylint: disable=broad-except
             _LOGGER.debug('%s._init_services(): caught exception: %s', self, ex)
             self._services = {}
             return
@@ -472,7 +470,6 @@ class DlnaDmrDevice(MediaPlayerDevice):
     def async_set_volume_level(self, service, action, volume):
         """Set volume level, range 0..1."""
         _LOGGER.debug('%s.async_set_volume_level(): %s', self, volume)
-
         state_variable = action.argument('DesiredVolume').related_state_variable
         min_ = state_variable.min_value or 0
         override_max = self._additional_configuration.get('max_volume', None)
@@ -495,7 +492,6 @@ class DlnaDmrDevice(MediaPlayerDevice):
     def async_mute_volume(self, service, action, mute):
         """Mute the volume."""
         _LOGGER.debug('%s.async_mute_volume(): %s', self, mute)
-
         desired_mute = bool(mute)
         yield from service.async_call_action(action, InstanceID=0, Channel='Master',
                                              DesiredMute=desired_mute)
@@ -506,7 +502,6 @@ class DlnaDmrDevice(MediaPlayerDevice):
     def async_media_pause(self, service, action):
         """Send pause command."""
         _LOGGER.debug('%s.async_media_pause()', self)
-
         yield from service.async_call_action(action, InstanceID=0)
 
     @asyncio.coroutine
@@ -515,7 +510,6 @@ class DlnaDmrDevice(MediaPlayerDevice):
     def async_media_play(self, service, action):
         """Send play command."""
         _LOGGER.debug('%s.async_media_play()', self)
-
         yield from service.async_call_action(action, InstanceID=0, Speed='1')
 
     @asyncio.coroutine
@@ -524,7 +518,6 @@ class DlnaDmrDevice(MediaPlayerDevice):
     def async_media_stop(self, service, action):
         """Send stop command."""
         _LOGGER.debug('%s.async_media_stop()', self)
-
         yield from service.async_call_action(action, InstanceID=0)
 
     @asyncio.coroutine
@@ -533,7 +526,6 @@ class DlnaDmrDevice(MediaPlayerDevice):
     def async_media_previous_track(self, service, action):
         """Send previous track command."""
         _LOGGER.debug('%s.async_media_previous_track()', self)
-
         yield from service.async_call_action(action, InstanceID=0)
 
     @asyncio.coroutine
@@ -542,7 +534,6 @@ class DlnaDmrDevice(MediaPlayerDevice):
     def async_media_next_track(self, service, action):
         """Send next track command."""
         _LOGGER.debug('%s.async_media_next_track()', self)
-
         yield from service.async_call_action(action, InstanceID=0)
 
     @property

@@ -107,7 +107,7 @@ class UpnpService(object):
         return response_args
 
     @asyncio.coroutine
-    def _async_do_http_request(self, method, url, headers, body):
+    def _async_do_http_request(self, method, url, headers=None, body=''):
         websession = async_get_clientsession(self.hass)
         try:
             with async_timeout.timeout(5, loop=self.hass.loop):
@@ -136,7 +136,8 @@ class UpnpService(object):
             'Host': urllib.parse.urlparse(self.event_sub_url).netloc,
             'CALLBACK': '<{}>'.format(callback_uri),
         }
-        response_status, response_headers, _ = yield from self._async_do_http_request('SUBSCRIBE', self.event_sub_url, headers, '')
+        response_status, response_headers, _ = \
+            yield from self._async_do_http_request('SUBSCRIBE', self.event_sub_url, headers)
 
         if response_status != 200:
             _LOGGER.error('Did not receive 200, but %s', response_status)
@@ -167,7 +168,8 @@ class UpnpService(object):
             'SID': subscription_sid,
         }
         try:
-            response_status, _, _ = yield from self._async_do_http_request('UNSUBSCRIBE', self.event_sub_url, headers, '')
+            response_status, _, _ = \
+                yield from self._async_do_http_request('UNSUBSCRIBE', self.event_sub_url, headers)
         except (asyncio.TimeoutError, aiohttp.ClientError):
             if not force:
                 raise
@@ -186,7 +188,8 @@ class UpnpService(object):
         """
         notify_sid = headers.get('SID')
         if notify_sid != self._subscription_sid:
-            # _LOGGER.debug('Received NOTIFY for unknown SID: %s, known SID: %s', notify_sid, self._subscription_sid)
+            # _LOGGER.debug('Received NOTIFY for unknown SID: %s, known SID: %s',
+            #               notify_sid, self._subscription_sid)
             return
 
         el_root = ET.fromstring(body)
@@ -345,10 +348,10 @@ class UpnpAction(object):
 
     def _format_request_args(self, **kwargs):
         self.validate_arguments(**kwargs)
-        arg_strs = ["<{0}>{1}</{0}>".format(arg.name, arg.coerce_upnp(kwargs[arg.name])) for arg in self.in_arguments()]
+        arg_strs = ["<{0}>{1}</{0}>".format(arg.name, arg.coerce_upnp(kwargs[arg.name]))
+                    for arg in self.in_arguments()]
         return "\n".join(arg_strs)
 
-    # pylint: disable=unused-argument
     def parse_response(self, service_type, response_headers, response_body):
         """Parse response from called Action."""
         xml = ET.fromstring(response_body)
@@ -480,7 +483,11 @@ class UpnpStateVariable(object):
 
 
 class UpnpFactory(object):
-    """Factory for UpnpService and friends."""
+    """
+    Factory for UpnpService and friends.
+    Use UpnpFactory.async_create_services() to instantiate UpnpServices from a device XML.
+    You have probably received this URL from netdisco, for example.
+    """
 
     STATE_VARIABLE_TYPE_MAPPING = {
         'i2': int,
@@ -527,6 +534,7 @@ class UpnpFactory(object):
 
         return UpnpService(self.hass, service_description, base_url, state_vars, actions)
 
+    # pylint: disable=no-self-use
     def _service_parse_xml(self, service_description_xml):
         return {
             'service_id': service_description_xml.find('device:serviceId', NS).text,
@@ -551,6 +559,7 @@ class UpnpFactory(object):
         schema = self._state_variable_create_schema(type_info)
         return UpnpStateVariable(state_variable_info, schema)
 
+    # pylint: disable=no-self-use
     def _state_variable_parse_xml(self, state_variable_xml):
         info = {
             'send_events': state_variable_xml.attrib['sendEvents'] == 'yes',
@@ -575,14 +584,17 @@ class UpnpFactory(object):
                 'max': allowed_value_range.find('service:maximum', NS).text,
             }
             if allowed_value_range.find('service:step', NS):
-                type_info['allowed_value_range']['step'] = allowed_value_range.find('service:step', NS).text
+                type_info['allowed_value_range']['step'] = \
+                    allowed_value_range.find('service:step', NS).text
 
         allowed_value_list = state_variable_xml.find('service:allowedValueList', NS)
         if allowed_value_list:
-            type_info['allowed_values'] = [v.text for v in allowed_value_list.findall('service:allowedValue', NS)]
+            type_info['allowed_values'] = \
+                [v.text for v in allowed_value_list.findall('service:allowedValue', NS)]
 
         return info
 
+    # pylint: disable=no-self-use
     def _state_variable_create_schema(self, type_info):
         # construct validators
         validators = []
@@ -627,10 +639,13 @@ class UpnpFactory(object):
     def create_action(self, action_xml, state_variables):
         """Create a UpnpAction from action_xml."""
         action_info = self._action_parse_xml(action_xml, state_variables)
-        args = [UpnpAction.Argument(arg_info['name'], arg_info['direction'], arg_info['state_variable'])
+        args = [UpnpAction.Argument(arg_info['name'],
+                                    arg_info['direction'],
+                                    arg_info['state_variable'])
                 for arg_info in action_info['arguments']]
         return UpnpAction(action_info['name'], args)
 
+    # pylint: disable=no-self-use
     def _action_parse_xml(self, action_xml, state_variables):
         info = {
             'name': action_xml.find('service:name', NS).text,
