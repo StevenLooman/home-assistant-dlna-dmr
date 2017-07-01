@@ -256,7 +256,7 @@ class TestUpnpService(unittest.TestCase):
             assert sid == service.subscription_sid
 
         @asyncio.coroutine
-        def mocked_do_http_request(_a, _b, _c, _d):
+        def mocked_do_http_request(_a, _b, _c=None, _d=None):
             return mock_coro((200, {'sid': sid}, None))
 
         service._async_do_http_request = mocked_do_http_request
@@ -275,7 +275,7 @@ class TestUpnpService(unittest.TestCase):
             assert service.subscription_sid == None
 
         @asyncio.coroutine
-        def mocked_do_http_request(_a, _b, _c, _d):
+        def mocked_do_http_request(_a, _b, _c=None, _d=None):
             return mock_coro((200, {}, None))
 
         service._async_do_http_request = mocked_do_http_request
