@@ -17,8 +17,9 @@ media_player:
 Replace `http://192.168.178.71:9197/dmr` with the URL to the UPnP description XML.
 
 ## Notes
-- Still in development, YMMV!
-- Feedback/testing is appreciated!
+- Still in development, YMMV.
+- Only tested with my own TV (Samsung). This TV only updates via UPnP if the stream was opened via a remote UPnP device (e.g., BubbleUPnP), not when a stream is opened via the local UPnP browser!
+- Feedback/testing is appreciated.
 - I'll create a pull request for automatic discovery to `netdisco` as soon as this component is more mature.
 
 # License
