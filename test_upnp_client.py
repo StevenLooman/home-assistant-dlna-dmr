@@ -1,22 +1,20 @@
+"""Unit tests for upnp_client."""
 import asyncio
-import unittest
+import pytest
 import voluptuous as vol
 import xml.etree.ElementTree as ET
-from tests.common import (
-    get_test_home_assistant, mock_coro)
 
-from upnp_client import UpnpFactory
+from upnp_client import (
+    UpnpError,
+    UpnpFactory,
+    UpnpRequester
+)
+
 
 NS = {
     'device': 'urn:schemas-upnp-org:device-1-0',
     'service': 'urn:schemas-upnp-org:service-1-0',
-    'event': 'urn:schemas-upnp-org:event-1-0',
-    'didl_lite': 'urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/',
-
-    'soap_envelope': 'http://schemas.xmlsoap.org/soap/envelope/',
 }
-
-
 
 
 def read_file(filename):
@@ -24,280 +22,287 @@ def read_file(filename):
         return f.read()
 
 
-class TestUpnpServiceStateVariable(unittest.TestCase):
+class UpnpTestRequester(UpnpRequester):
 
-    def setUp(self):
-        self.hass = object()
-        self.factory = UpnpFactory(self.hass)
+    def __init__(self, response_map):
+        self._response_map = response_map
 
-    def tearDown(self):
-        self.factory = None
         self.hass = None
 
-    def test_init(self):
-        rc_xml = ET.parse('fixtures/RenderingControl_1.xml')
-        volume_state_var_xml = rc_xml.find('.//service:stateVariable[service:name="Volume"]', NS)
-        sv = self.factory.create_state_variable(volume_state_var_xml)
-        self.assertIsNotNone(sv)
-        self.assertEqual(sv.name, 'Volume')
+    @asyncio.coroutine
+    def async_http_request(self, method, url, headers=None, body=None):
+        yield from asyncio.sleep(0.01)
 
+        key = (method, url)
+        if key not in self._response_map:
+            raise Exception('Request not in response map')
+
+        return self._response_map[key]
+
+
+RESPONSE_MAP = {
+    ('GET', 'http://localhost:1234/dmr'):
+        (200, {}, read_file('fixtures/dmr')),
+    ('GET', 'http://localhost:1234/RenderingControl_1.xml'):
+        (200, {}, read_file('fixtures/RenderingControl_1.xml')),
+    ('GET', 'http://localhost:1234/AVTransport_1.xml'):
+        (200, {}, read_file('fixtures/AVTransport_1.xml')),
+    ('SUBSCRIBE', 'http://localhost:1234/upnp/event/RenderingControl1'):
+        (200, {'sid': 'uuid:dummy'}, ''),
+    ('UNSUBSCRIBE', 'http://localhost:1234/upnp/event/RenderingControl1'):
+        (200, {'sid': 'uuid:dummy'}, ''),
+}
+
+
+class TestUpnpStateVariable:
+
+    @pytest.mark.asyncio
+    def test_init(self):
+        r = UpnpTestRequester(RESPONSE_MAP)
+        factory = UpnpFactory(r)
+        device = yield from factory.async_create_device('http://localhost:1234/dmr')
+        assert device
+
+        service = device.service('urn:schemas-upnp-org:service:RenderingControl:1')
+        assert service
+
+        state_var = service.state_variable('Volume')
+        assert state_var
+
+    @pytest.mark.asyncio
     def test_set_value_volume(self):
-        rc_xml = ET.parse('fixtures/RenderingControl_1.xml')
-        volume_state_var_xml = rc_xml.find('.//service:stateVariable[service:name="Volume"]', NS)
-        sv = self.factory.create_state_variable(volume_state_var_xml)
+        r = UpnpTestRequester(RESPONSE_MAP)
+        factory = UpnpFactory(r)
+        device = yield from factory.async_create_device('http://localhost:1234/dmr')
+        service = device.service('urn:schemas-upnp-org:service:RenderingControl:1')
+        sv = service.state_variable('Volume')
 
         sv.value = 10
-        self.assertEqual(sv.value, 10)
-        self.assertEqual(sv.upnp_value, '10')
+        assert sv.value == 10
+        assert sv.upnp_value == '10'
 
         sv.upnp_value = '20'
-        self.assertEqual(sv.value, 20)
-        self.assertEqual(sv.upnp_value, '20')
+        assert sv.value == 20
+        assert sv.upnp_value == '20'
 
+    @pytest.mark.asyncio
     def test_set_value_mute(self):
-        rc_xml = ET.parse('fixtures/RenderingControl_1.xml')
-        mute_state_var_xml = rc_xml.find('.//service:stateVariable[service:name="Mute"]', NS)
-        sv = self.factory.create_state_variable(mute_state_var_xml )
+        r = UpnpTestRequester(RESPONSE_MAP)
+        factory = UpnpFactory(r)
+        device = yield from factory.async_create_device('http://localhost:1234/dmr')
+        service = device.service('urn:schemas-upnp-org:service:RenderingControl:1')
+        sv = service.state_variable('Mute')
 
         sv.value = True
-        self.assertEqual(sv.value, True)
-        self.assertEqual(sv.upnp_value, '1')
+        assert sv.value is True
+        assert sv.upnp_value == '1'
 
         sv.value = False
-        self.assertEqual(sv.value, False)
-        self.assertEqual(sv.upnp_value, '0')
+        assert sv.value is False
+        assert sv.upnp_value == '0'
 
         sv.upnp_value = '1'
-        self.assertEqual(sv.value, True)
-        self.assertEqual(sv.upnp_value, '1')
+        assert sv.value is True
+        assert sv.upnp_value == '1'
 
         sv.upnp_value = '0'
-        self.assertEqual(sv.value, False)
-        self.assertEqual(sv.upnp_value, '0')
+        assert sv.value is False
+        assert sv.upnp_value == '0'
 
+    @pytest.mark.asyncio
     def test_value_min_max(self):
-        rc_xml = ET.parse('fixtures/RenderingControl_1.xml')
-        volume_state_var_xml = rc_xml.find('.//service:stateVariable[service:name="Volume"]', NS)
-        sv = self.factory.create_state_variable(volume_state_var_xml)
+        r = UpnpTestRequester(RESPONSE_MAP)
+        factory = UpnpFactory(r)
+        device = yield from factory.async_create_device('http://localhost:1234/dmr')
+        service = device.service('urn:schemas-upnp-org:service:RenderingControl:1')
+        sv = service.state_variable('Volume')
 
-        self.assertEqual(sv.min_value, 0)
-        self.assertEqual(sv.max_value, 100)
+        assert sv.min_value == 0
+        assert sv.max_value == 100
 
-        with self.assertRaises(vol.error.MultipleInvalid):
+        try:
             sv.value = -10
+            assert False
+        except vol.error.MultipleInvalid:
+            pass
 
-        with self.assertRaises(vol.error.MultipleInvalid):
+        try:
             sv.value = 110
+            assert False
+        except vol.error.MultipleInvalid:
+            pass
 
+    @pytest.mark.asyncio
     def test_value_allowed_value(self):
-        rc_xml = ET.parse('fixtures/AVTransport_1.xml')
-        state_var = rc_xml.find('.//service:stateVariable[service:name="PlaybackStorageMedium"]', NS)
-        sv = self.factory.create_state_variable(state_var)
+        r = UpnpTestRequester(RESPONSE_MAP)
+        factory = UpnpFactory(r)
+        device = yield from factory.async_create_device('http://localhost:1234/dmr')
+        service = device.service('urn:schemas-upnp-org:service:RenderingControl:1')
+        sv = service.state_variable('A_ARG_TYPE_Channel')
 
-        self.assertEqual(sv.allowed_values, ['NONE', 'NETWORK'])
+        assert sv.allowed_values == ['Master']
 
         # should be ok
-        sv.value = 'NETWORK'
+        sv.value = 'Master'
+        assert sv.value == 'Master'
 
-        with self.assertRaises(vol.error.MultipleInvalid):
-            sv.value = 'NETWORK,NONE'
-
-    def test_value_validate(self):
-        rc_xml = ET.parse('fixtures/RenderingControl_1.xml')
-
-        state_var_xml = rc_xml.find('.//service:stateVariable[service:name="Volume"]', NS)
-        sv = self.factory.create_state_variable(state_var_xml )
-
-        sv.validate_value(10)
-        with self.assertRaises(vol.error.MultipleInvalid):
-            sv.validate_value('test')
-
-            state_var_xml = rc_xml.find('.//service:stateVariable[service:name="Mute"]', NS)
-        sv = self.factory.create_state_variable(state_var_xml )
-
-        sv.validate_value(True)
-        with self.assertRaises(vol.error.MultipleInvalid):
-            sv.validate_value('test')
+        try:
+            sv.value = 'Left'
+            assert False
+        except vol.error.MultipleInvalid:
+            pass
 
 
-class TestUpnpServiceAction(unittest.TestCase):
+class TestUpnpServiceAction:
 
-    def setUp(self):
-        self.hass = object()
-        self.factory = UpnpFactory(self.hass)
-
-    def tearDown(self):
-        self.factory = None
-        self.hass = None
-
-    def get_state_variable(self, state_variable_name):
-        rc_xml = ET.parse('fixtures/RenderingControl_1.xml')
-        query = './/service:stateVariable[service:name="{}"]'.format(state_variable_name)
-        volume_state_var_xml = rc_xml.find(query, NS)
-        return self.factory.create_state_variable(volume_state_var_xml)
-
+    @pytest.mark.asyncio
     def test_init(self):
-        state_vars = {
-            'A_ARG_TYPE_InstanceID': self.get_state_variable('A_ARG_TYPE_InstanceID'),
-            'A_ARG_TYPE_Channel': self.get_state_variable('A_ARG_TYPE_Channel'),
-            'Volume': self.get_state_variable('Volume'),
-        }
+        r = UpnpTestRequester(RESPONSE_MAP)
+        factory = UpnpFactory(r)
+        device = yield from factory.async_create_device('http://localhost:1234/dmr')
+        service = device.service('urn:schemas-upnp-org:service:RenderingControl:1')
+        action = service.action('GetVolume')
 
-        rc_xml = ET.parse('fixtures/RenderingControl_1.xml')
-        action_xml = rc_xml.find('.//service:action[service:name="GetVolume"]', NS)
-        action = self.factory.create_action(action_xml, state_vars)
+        assert action
+        assert action.name == 'GetVolume'
 
-        self.assertIsNotNone(action)
-        self.assertEqual(action.name, 'GetVolume')
-
+    @pytest.mark.asyncio
     def test_valid_arguments(self):
-        state_vars = {
-            'A_ARG_TYPE_InstanceID': self.get_state_variable('A_ARG_TYPE_InstanceID'),
-            'A_ARG_TYPE_Channel': self.get_state_variable('A_ARG_TYPE_Channel'),
-            'Volume': self.get_state_variable('Volume'),
-        }
-
-        rc_xml = ET.parse('fixtures/RenderingControl_1.xml')
-        action_xml = rc_xml.find('.//service:action[service:name="SetVolume"]', NS)
-        action = self.factory.create_action(action_xml, state_vars)
+        r = UpnpTestRequester(RESPONSE_MAP)
+        factory = UpnpFactory(r)
+        device = yield from factory.async_create_device('http://localhost:1234/dmr')
+        service = device.service('urn:schemas-upnp-org:service:RenderingControl:1')
+        action = service.action('SetVolume')
 
         # all ok
         action.validate_arguments(InstanceID=0, Channel='Master', DesiredVolume=10)
 
         # invalid type for InstanceID
-        with self.assertRaises(vol.error.MultipleInvalid):
+        try:
             action.validate_arguments(InstanceID='0', Channel='Master', DesiredVolume=10)
+            assert False
+        except vol.error.MultipleInvalid:
+            pass
 
         # missing DesiredVolume
-        with self.assertRaises(KeyError):
-            action.validate_arguments(InstanceID=0, Channel='Master')
+        try:
+            action.validate_arguments(InstanceID='0', Channel='Master')
+            assert False
+        except vol.error.MultipleInvalid:
+            pass
 
+    @pytest.mark.asyncio
     def test_format_request(self):
-        state_vars = {
-            'A_ARG_TYPE_InstanceID': self.get_state_variable('A_ARG_TYPE_InstanceID'),
-            'A_ARG_TYPE_Channel': self.get_state_variable('A_ARG_TYPE_Channel'),
-            'Volume': self.get_state_variable('Volume'),
-        }
+        r = UpnpTestRequester(RESPONSE_MAP)
+        factory = UpnpFactory(r)
+        device = yield from factory.async_create_device('http://localhost:1234/dmr')
+        service = device.service('urn:schemas-upnp-org:service:RenderingControl:1')
+        action = service.action('SetVolume')
 
-        rc_xml = ET.parse('fixtures/RenderingControl_1.xml')
-        action_xml = rc_xml.find('.//service:action[service:name="SetVolume"]', NS)
-        action = self.factory.create_action(action_xml, state_vars)
-
-        url = 'http://localhost:1234'
         service_type = 'urn:schemas-upnp-org:service:RenderingControl:1'
-        headers, body = action.create_request(url, service_type,
-            InstanceID=0, Channel='Master', DesiredVolume=10)
+        url, headers, body = action.create_request(InstanceID=0, Channel='Master', DesiredVolume=10)
+
         root = ET.fromstring(body)
         ns = {'rc_service': service_type}
-        self.assertIsNotNone(root.find('.//rc_service:SetVolume', ns))
-        self.assertIsNotNone(root.find('.//DesiredVolume', ns))
+        assert root.find('.//rc_service:SetVolume', ns) is not None
+        assert root.find('.//DesiredVolume', ns) is not None
 
+    @pytest.mark.asyncio
     def test_parse_response(self):
-        state_vars = {
-            'A_ARG_TYPE_InstanceID': self.get_state_variable('A_ARG_TYPE_InstanceID'),
-            'A_ARG_TYPE_Channel': self.get_state_variable('A_ARG_TYPE_Channel'),
-            'Volume': self.get_state_variable('Volume'),
-        }
-
-        rc_xml = ET.parse('fixtures/RenderingControl_1.xml')
-        action_xml = rc_xml.find('.//service:action[service:name="GetVolume"]', NS)
-        action = self.factory.create_action(action_xml, state_vars)
+        r = UpnpTestRequester(RESPONSE_MAP)
+        factory = UpnpFactory(r)
+        device = yield from factory.async_create_device('http://localhost:1234/dmr')
+        service = device.service('urn:schemas-upnp-org:service:RenderingControl:1')
+        action = service.action('GetVolume')
 
         service_type = 'urn:schemas-upnp-org:service:RenderingControl:1'
         response = read_file('fixtures/action_GetVolume.xml')
         result = action.parse_response(service_type, {}, response)
-        self.assertEqual(result, {'CurrentVolume': 3})
+        assert result == {'CurrentVolume': 3}
 
+    @pytest.mark.asyncio
+    def test_parse_response_error(self):
+        r = UpnpTestRequester(RESPONSE_MAP)
+        factory = UpnpFactory(r)
+        device = yield from factory.async_create_device('http://localhost:1234/dmr')
+        service = device.service('urn:schemas-upnp-org:service:RenderingControl:1')
+        action = service.action('GetVolume')
 
-class TestUpnpService(unittest.TestCase):
+        service_type = 'urn:schemas-upnp-org:service:RenderingControl:1'
+        response = read_file('fixtures/action_GetVolumeError.xml')
+        try:
+            action.parse_response(service_type, {}, response)
+            assert False
+        except UpnpError:
+            pass
 
-    def setUp(self):
-        self.hass = get_test_home_assistant()
-        self.factory = UpnpFactory(self.hass)
+class TestUpnpService:
 
-    def tearDown(self):
-        self.factory = None
-        self.hass.stop()
-
-    def construct_service(self):
-        dmr_xml = ET.parse('fixtures/dmr')
-        scpd_xml = ET.parse('fixtures/RenderingControl_1.xml')
-        service_desc_xml = dmr_xml.find('.//device:service', NS)
-        url = 'http://localhost:1234'
-        return self.factory.create_service(service_desc_xml, url, scpd_xml)
-
+    @pytest.mark.asyncio
     def test_init(self):
-        url = 'http://localhost:1234'
-        service = self.construct_service()
-        self.assertIsNotNone(service)
-        self.assertEqual(service.service_type, 'urn:schemas-upnp-org:service:RenderingControl:1')
-        self.assertEqual(service.control_url, url + '/upnp/control/RenderingControl1')
-        self.assertEqual(service.event_sub_url, url + '/upnp/event/RenderingControl1')
-        self.assertEqual(service.scpd_url, url + '/RenderingControl_1.xml')
+        r = UpnpTestRequester(RESPONSE_MAP)
+        factory = UpnpFactory(r)
+        device = yield from factory.async_create_device('http://localhost:1234/dmr')
+        service = device.service('urn:schemas-upnp-org:service:RenderingControl:1')
 
+        base_url = 'http://localhost:1234'
+        assert service
+        assert service.service_type == 'urn:schemas-upnp-org:service:RenderingControl:1'
+        assert service.control_url == base_url + '/upnp/control/RenderingControl1'
+        assert service.event_sub_url == base_url + '/upnp/event/RenderingControl1'
+        assert service.scpd_url == base_url + '/RenderingControl_1.xml'
+
+    @pytest.mark.asyncio
     def test_state_variables_actions(self):
-        service = self.construct_service()
+        r = UpnpTestRequester(RESPONSE_MAP)
+        factory = UpnpFactory(r)
+        device = yield from factory.async_create_device('http://localhost:1234/dmr')
+        service = device.service('urn:schemas-upnp-org:service:RenderingControl:1')
 
         state_var = service.state_variable('Volume')
-        self.assertIsNotNone(state_var)
+        assert state_var
 
         action = service.action('GetVolume')
-        self.assertIsNotNone(action)
+        assert action
 
+    @pytest.mark.asyncio
     def test_subscribe(self):
-        service = self.construct_service()
+        r = UpnpTestRequester(RESPONSE_MAP)
+        factory = UpnpFactory(r)
+        device = yield from factory.async_create_device('http://localhost:1234/dmr')
+        service = device.service('urn:schemas-upnp-org:service:RenderingControl:1')
+
         callback_uri = 'http://callback_uri'
         sid = 'uuid:dummy'
 
-        @asyncio.coroutine
-        def run_test():
-            received_sid = yield from service.async_subscribe(callback_uri)
-            assert sid == received_sid
-            assert sid == service.subscription_sid
+        received_sid = yield from service.async_subscribe(callback_uri)
+        assert sid == received_sid
+        assert sid == service.subscription_sid
 
-        @asyncio.coroutine
-        def mocked_do_http_request(_a, _b, _c=None, _d=None):
-            return mock_coro((200, {'sid': sid}, None))
-
-        service._async_do_http_request = mocked_do_http_request
-
-        self.hass.add_job(run_test())
-        self.hass.async_block_till_done()
-
+    @pytest.mark.asyncio
     def test_unsubscribe(self):
-        service = self.construct_service()
+        r = UpnpTestRequester(RESPONSE_MAP)
+        factory = UpnpFactory(r)
+        device = yield from factory.async_create_device('http://localhost:1234/dmr')
+        service = device.service('urn:schemas-upnp-org:service:RenderingControl:1')
         service._subscription_sid = 'uuid:dummy'
 
-        @asyncio.coroutine
-        def run_test():
-            assert service.subscription_sid == 'uuid:dummy'
-            yield from service.async_unsubscribe()
-            assert service.subscription_sid == None
+        assert service.subscription_sid == 'uuid:dummy'
+        yield from service.async_unsubscribe()
+        assert service.subscription_sid is None
 
-        @asyncio.coroutine
-        def mocked_do_http_request(_a, _b, _c=None, _d=None):
-            return mock_coro((200, {}, None))
-
-        service._async_do_http_request = mocked_do_http_request
-
-        self.hass.add_job(run_test())
-        self.hass.async_block_till_done()
-
+    @pytest.mark.asyncio
     def test_call_action(self):
-        service = self.construct_service()
+        responses = {
+            ('POST', 'http://localhost:1234/upnp/control/RenderingControl1'):
+                (200, {}, read_file('fixtures/action_GetVolume.xml'))
+        }
+        responses.update(RESPONSE_MAP)
+        r = UpnpTestRequester(responses)
+        factory = UpnpFactory(r)
+        device = yield from factory.async_create_device('http://localhost:1234/dmr')
+        service = device.service('urn:schemas-upnp-org:service:RenderingControl:1')
         action = service.action('GetVolume')
-        response_body = read_file('fixtures/action_GetVolume.xml')
 
-        @asyncio.coroutine
-        def run_test():
-            result = yield from service.async_call_action(action, InstanceID=0, Channel='Master')
-            assert result['CurrentVolume'] == 3
-
-        @asyncio.coroutine
-        def mocked_do_http_request_ok(_a, _b, _c, _d):
-            return mock_coro((200, {}, response_body))
-
-        service._async_do_http_request = mocked_do_http_request_ok
-
-        self.hass.add_job(run_test())
-        self.hass.async_block_till_done()
+        result = yield from service.async_call_action(action, InstanceID=0, Channel='Master')
+        assert result['CurrentVolume'] == 3

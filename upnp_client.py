@@ -1,15 +1,15 @@
 """UPnP client module."""
 
+import abc
 import asyncio
 import logging
+import pytz
 import urllib.parse
+from datetime import datetime
 from xml.etree import ElementTree as ET
 
 import aiohttp
-import async_timeout
 import voluptuous as vol
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.util import utcnow
 
 
 NS = {
@@ -18,24 +18,94 @@ NS = {
     'device': 'urn:schemas-upnp-org:device-1-0',
     'service': 'urn:schemas-upnp-org:service-1-0',
     'event': 'urn:schemas-upnp-org:event-1-0',
+    'control': 'urn:schemas-upnp-org:control-1-0',
 }
 
 
 _LOGGER = logging.getLogger(__name__)
 
 
+class UpnpRequester(object):
+    """Abstract base class used for performing async HTTP requests."""
+
+    @asyncio.coroutine
+    @abc.abstractmethod
+    def async_http_request(self, method, url, headers=None, body=None):
+        """Do a HTTP request."""
+        pass
+
+
+class UpnpError(Exception):
+    """UpnpError."""
+
+
+class UpnpDevice(object):
+    """UPnP Device representation."""
+
+    def __init__(self, requester, device_url, device_description, services):
+        self._requester = requester
+        self._device_url = device_url
+        self._device_description = device_description
+        self._services = {service.service_type: service for service in services}
+
+        for service in services:
+            service.device = self
+
+    @property
+    def name(self):
+        """Get the name of this device."""
+        return self._device_description['friendly_name']
+
+    def service(self, service_type):
+        """Get service by service_type."""
+        return self._services.get(service_type)
+
+    @property
+    def services(self):
+        """Get all services."""
+        return self._services
+
+    @property
+    def device_url(self):
+        """Get device url."""
+        return self._device_url
+
+    @asyncio.coroutine
+    def async_ping(self):
+        """Ping the device"""
+        yield from self._requester.async_http_request('GET', self._device_url)
+
+
 class UpnpService(object):
     """UPnP Service representation."""
 
-    def __init__(self, hass, service_description, device_url, state_variables, actions):
-        self.hass = hass
+    def __init__(self, requester, service_description, state_variables, actions):
+        self._requester = requester
         self._service_description = service_description
-        self._device_url = device_url
-        self._state_variables = state_variables
-        self._actions = actions
+        self._state_variables = {sv.name: sv for sv in state_variables}
+        self._actions = {ac.name: ac for ac in actions}
 
         self._subscription_sid = None
         self._on_state_variable_change = None
+        self._device = None
+
+        for state_var in state_variables:
+            state_var.service = self
+        for action in actions:
+            action.service = self
+
+    @property
+    def device(self):
+        """Get parent UpnpDevice."""
+        return self._device
+
+    @device.setter
+    def device(self, device):
+        """Set parent UpnpDevice."""
+        if self._device:
+            raise UpnpError('UpnpService already bound to UpnpDevice')
+
+        self._device = device
 
     @property
     def service_type(self):
@@ -50,17 +120,20 @@ class UpnpService(object):
     @property
     def scpd_url(self):
         """Get full SCPD-url for this UpnpService."""
-        return urllib.parse.urljoin(self._device_url, self._service_description['scpd_url'])
+        return urllib.parse.urljoin(self.device.device_url,
+                                    self._service_description['scpd_url'])
 
     @property
     def control_url(self):
         """Get full control-url for this UpnpService."""
-        return urllib.parse.urljoin(self._device_url, self._service_description['control_url'])
+        return urllib.parse.urljoin(self.device.device_url,
+                                    self._service_description['control_url'])
 
     @property
     def event_sub_url(self):
         """Get full event sub-url for this UpnpService."""
-        return urllib.parse.urljoin(self._device_url, self._service_description['event_sub_url'])
+        return urllib.parse.urljoin(self.device.device_url,
+                                    self._service_description['event_sub_url'])
 
     @property
     def state_variables(self):
@@ -89,35 +162,8 @@ class UpnpService(object):
         if isinstance(action, str):
             action = self.actions[action]
 
-        _LOGGER.debug('Calling action: %s', action.name)
-        # build request
-        headers, body = action.create_request(self.control_url, self.service_type, **kwargs)
-        # _LOGGER.debug('Request_body: %s', body)
-
-        # do request
-        status_code, response_headers, response_body =\
-            yield from self._async_do_http_request('POST', self.control_url, headers, body)
-        # _LOGGER.debug('Status: %s Response_body: %s', status_code, response_body)
-
-        if status_code != 200:
-            raise RuntimeError('Error during call_action')
-
-        # parse results
-        response_args = action.parse_response(self.service_type, response_headers, response_body)
-        return response_args
-
-    @asyncio.coroutine
-    def _async_do_http_request(self, method, url, headers=None, body=''):
-        websession = async_get_clientsession(self.hass)
-        try:
-            with async_timeout.timeout(5, loop=self.hass.loop):
-                response = yield from websession.request(method, url, headers=headers, data=body)
-                response_body = yield from response.text()
-        except (asyncio.TimeoutError, aiohttp.ClientError) as ex:
-            _LOGGER.debug("Error in %s.async_call_action(): %s", self, ex)
-            raise
-
-        return response.status, response.headers, response_body
+        result = yield from action.async_call(**kwargs)
+        return result
 
     @property
     def subscription_sid(self):
@@ -137,7 +183,7 @@ class UpnpService(object):
             'CALLBACK': '<{}>'.format(callback_uri),
         }
         response_status, response_headers, _ = \
-            yield from self._async_do_http_request('SUBSCRIBE', self.event_sub_url, headers)
+            yield from self._requester.async_http_request('SUBSCRIBE', self.event_sub_url, headers)
 
         if response_status != 200:
             _LOGGER.error('Did not receive 200, but %s', response_status)
@@ -169,7 +215,9 @@ class UpnpService(object):
         }
         try:
             response_status, _, _ = \
-                yield from self._async_do_http_request('UNSUBSCRIBE', self.event_sub_url, headers)
+                yield from self._requester.async_http_request('UNSUBSCRIBE',
+                                                              self.event_sub_url,
+                                                              headers)
         except (asyncio.TimeoutError, aiohttp.ClientError):
             if not force:
                 raise
@@ -206,6 +254,9 @@ class UpnpService(object):
                 value = el_state_var.get('val')
 
                 state_var = self.state_variable(name)
+                if not state_var:
+                    continue
+
                 try:
                     state_var.upnp_value = value
                 except vol.error.MultipleInvalid:
@@ -288,6 +339,21 @@ class UpnpAction(object):
         self._name = name
         self._args = args
 
+        self._service = None
+
+    @property
+    def service(self):
+        """Get parent UpnpService."""
+        return self._service
+
+    @service.setter
+    def service(self, service):
+        """Set parent UpnpService."""
+        if self.service:
+            raise UpnpError('UpnpAction already bound to UpnpService')
+
+        self._service = service
+
     @property
     def name(self):
         """Get name of this UpnpAction."""
@@ -321,10 +387,34 @@ class UpnpAction(object):
 
             return arg
 
-    def create_request(self, control_url, service_type, **kwargs):
+    @asyncio.coroutine
+    def async_call(self, **kwargs):
+        """Call an action with arguments"""
+        # build request
+        url, headers, body = self.create_request(**kwargs)
+        # _LOGGER.debug('Request_body: %s', body)
+
+        # do request
+        status_code, response_headers, response_body = \
+            yield from self.service._requester.async_http_request('POST', url, headers, body)
+        # _LOGGER.debug('Status: %s Response_body: %s', status_code, response_body)
+
+        if status_code != 200:
+            raise UpnpError('Error during async_call()')
+
+        # parse body
+        response_args = self.parse_response(self.service.service_type,
+                                            response_headers,
+                                            response_body)
+        return response_args
+
+    def create_request(self, **kwargs):
         """Create headers and headers for this to-be-called UpnpAction."""
+        # build URL
+        control_url = self.service.control_url
+
         # construct SOAP body
-        service_ns = service_type
+        service_type = self.service.service_type
         soap_args = self._format_request_args(**kwargs)
         body = """<?xml version="1.0"?>
         <s:Envelope s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">
@@ -333,7 +423,7 @@ class UpnpAction(object):
                 {2}
             </u:{1}>
            </s:Body>
-        </s:Envelope>""".format(service_ns, self.name, soap_args)
+        </s:Envelope>""".format(service_type, self.name, soap_args)
 
         # construct SOAP header
         soap_action = "{0}#{1}".format(service_type, self.name)
@@ -344,7 +434,7 @@ class UpnpAction(object):
             'Content-Length': str(len(body)),
         }
 
-        return headers, body
+        return control_url, headers, body
 
     def _format_request_args(self, **kwargs):
         self.validate_arguments(**kwargs)
@@ -358,8 +448,10 @@ class UpnpAction(object):
 
         query = './/soap_envelope:Body/soap_envelope:Fault'
         if xml.find(query, NS):
-            _LOGGER.error('%s.async_call_action(): Error: %s', self, response_body)
-            raise RuntimeError('Error during call_action')
+            error_code = xml.find('.//control:errorCode', NS).text
+            error_description = xml.find('.//control:errorDescription', NS).text
+            raise UpnpError('Error during call_action, error_code: %s, error_description: %s',
+                            error_code, error_description)
 
         return self._parse_response_args(service_type, xml)
 
@@ -384,8 +476,22 @@ class UpnpStateVariable(object):
         self._state_variable_info = state_variable_info
         self._schema = schema
 
+        self._service = None
         self._value = None
         self._updated_at = None
+
+    @property
+    def service(self):
+        """Get parent UpnpService."""
+        return self._service
+
+    @service.setter
+    def service(self, service):
+        """Set parent UpnpService."""
+        if self.service:
+            raise UpnpError('UpnpStateVariable already bound to UpnpService')
+
+        self._service = service
 
     @property
     def min_value(self):
@@ -447,7 +553,7 @@ class UpnpStateVariable(object):
         """Set value, python typed."""
         self.validate_value(value)
         self._value = value
-        self._updated_at = utcnow()
+        self._updated_at = datetime.now(pytz.utc)
 
     @property
     def upnp_value(self):
@@ -475,7 +581,10 @@ class UpnpStateVariable(object):
 
     @property
     def updated_at(self):
-        """Get timestamp at which this UpnpStateVariable was updated."""
+        """
+        Get timestamp at which this UpnpStateVariable was updated.
+        Return time in UTC.
+        """
         return self._updated_at
 
     def __str__(self):
@@ -498,25 +607,34 @@ class UpnpFactory(object):
         'boolean': bool,
     }
 
-    def __init__(self, hass):
-        self.hass = hass
+    def __init__(self, requester):
+        self.requester = requester
 
     @asyncio.coroutine
-    def async_create_services(self, url):
-        """Retrieve URL and create all defined services."""
-        _LOGGER.debug('%s.async_create_services(): %s', self, url)
-        root = yield from self._async_fetch_device_description(url)
+    def async_create_device(self, dmr_url):
+        """Create a UpnpDevice, with all of it UpnpServices."""
+        root = yield from self._async_fetch_device_description(dmr_url)
 
         # get name
-        name = root.find('.//device:device/device:friendlyName', NS).text
+        device_desc = self._device_parse_xml(root)
 
         # get services
         services = []
-        for service_desc in root.findall('.//device:serviceList/device:service', NS):
-            service = yield from self.async_create_service(service_desc, url)
+        for service_desc_xml in root.findall('.//device:serviceList/device:service', NS):
+            service = yield from self.async_create_service(service_desc_xml, dmr_url)
             services.append(service)
 
-        return name, services
+        return UpnpDevice(self.requester, dmr_url, device_desc, services)
+
+    # pylint: disable=no-self-use
+    def _device_parse_xml(self, device_description_xml):
+        return {
+            'device_type': device_description_xml.find('.//device:deviceType', NS).text,
+            'friendly_name': device_description_xml.find('.//device:friendlyName', NS).text,
+            'manufacturer': device_description_xml.find('.//device:manufacturer', NS).text,
+            'model_description': device_description_xml.find('.//device:modelDescription', NS).text,
+            'model_name': device_description_xml.find('.//device:modelName', NS).text,
+        }
 
     @asyncio.coroutine
     def async_create_service(self, service_description_xml, base_url):
@@ -532,7 +650,7 @@ class UpnpFactory(object):
         state_vars = self.create_state_variables(scpd_xml)
         actions = self.create_actions(scpd_xml, state_vars)
 
-        return UpnpService(self.hass, service_description, base_url, state_vars, actions)
+        return UpnpService(self.requester, service_description, state_vars, actions)
 
     # pylint: disable=no-self-use
     def _service_parse_xml(self, service_description_xml):
@@ -546,10 +664,10 @@ class UpnpFactory(object):
 
     def create_state_variables(self, scpd_xml):
         """Create UpnpStateVariables from scpd_xml."""
-        state_vars = {}
+        state_vars = []
         for state_var_xml in scpd_xml.findall('.//service:stateVariable', NS):
             state_var = self.create_state_variable(state_var_xml)
-            state_vars[state_var.name] = state_var
+            state_vars.append(state_var)
         return state_vars
 
     def create_state_variable(self, state_variable_xml):
@@ -630,10 +748,10 @@ class UpnpFactory(object):
 
     def create_actions(self, scpd_xml, state_variables):
         """Create UpnpActions from scpd_xml."""
-        actions = {}
+        actions = []
         for action_xml in scpd_xml.findall('.//service:action', NS):
             action = self.create_action(action_xml, state_variables)
-            actions[action.name] = action
+            actions.append(action)
         return actions
 
     def create_action(self, action_xml, state_variables):
@@ -645,8 +763,8 @@ class UpnpFactory(object):
                 for arg_info in action_info['arguments']]
         return UpnpAction(action_info['name'], args)
 
-    # pylint: disable=no-self-use
-    def _action_parse_xml(self, action_xml, state_variables):
+    def _action_parse_xml(self, action_xml, state_variables):  # pylint: disable=no-self-use
+        svs = {sv.name: sv for sv in state_variables}
         info = {
             'name': action_xml.find('service:name', NS).text,
             'arguments': [],
@@ -656,31 +774,27 @@ class UpnpFactory(object):
             argument = {
                 'name': argument_xml.find('service:name', NS).text,
                 'direction': argument_xml.find('service:direction', NS).text,
-                'state_variable': state_variables[state_variable_name],
+                'state_variable': svs[state_variable_name],
             }
             info['arguments'].append(argument)
         return info
 
     @asyncio.coroutine
-    def _async_fetch_url(self, url):
-        websession = async_get_clientsession(self.hass)
-        try:
-            with async_timeout.timeout(10, loop=self.hass.loop):
-                response = yield from websession.get(url)
-                response_body = yield from response.text()
-        except (asyncio.TimeoutError, aiohttp.ClientError) as ex:
-            _LOGGER.debug("Error for UpnpServiceFactory._async_fetch_scpd(): %s", ex)
-            raise
-        return response_body
-
-    @asyncio.coroutine
     def _async_fetch_device_description(self, url):
-        response_body = yield from self._async_fetch_url(url)
+        status_code, _, response_body = yield from self.requester.async_http_request('GET', url)
+
+        if status_code != 200:
+            raise UpnpError
+
         root = ET.fromstring(response_body)
         return root
 
     @asyncio.coroutine
     def _async_fetch_scpd(self, url):
-        response_body = yield from self._async_fetch_url(url)
+        status_code, _, response_body = yield from self.requester.async_http_request('GET', url)
+
+        if status_code != 200:
+            raise UpnpError
+
         root = ET.fromstring(response_body)
         return root

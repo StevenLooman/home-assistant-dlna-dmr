@@ -28,13 +28,11 @@ NS = {
 
 SUBSCRIBED_CLIENTS = {
     'RC': {},
-    'CM': {},
     'AVT': {},
 }
 
 STATE_VARIABLES = {
     'RC': {},
-    'CM': {},
     'AVT': {},
 }
 
@@ -46,7 +44,7 @@ class StateVariable(object):
         self._value = value
 
     def matches_action(self, command):
-        return getattr(self, command, None) != None
+        return getattr(self, command, None) is not None
 
     @asyncio.coroutine
     def do_command(self, command, **kwargs):
@@ -144,21 +142,43 @@ class Mute(StateVariable):
         return dict()
 
 
+class TransportState(StateVariable):
+
+    SERVICE_NAME = 'AVT'
+
+    def __init__(self):
+        # super().__init__('STOPPED')
+        super().__init__('PLAYING')
+
+    @asyncio.coroutine
+    def GetTransportInfo(self, **kwargs):
+        LOGGER.debug('GetTransportState(%s)', kwargs)
+        return dict(CurrentTransportState=self.value, CurrentTransportStatus='OK', CurrentSpeed='1.0')
+
+
+class TrackDuration(StateVariable):
+
+    SERVICE_NAME = 'AVT'
+
+    def __init__(self):
+        super().__init__('00:10:00')
+
+    @asyncio.coroutine
+    def GetPositionInfo(self, **kwargs):
+        LOGGER.debug('GetPositionInfo(%s)', kwargs)
+        return dict(TrackDuration=self.value, Track=1, TrackMetaData='', TrackURI='', RelTime='00:05:00', AbsTime='00:05:00')
+
+
 STATE_VARIABLES['RC']['Volume'] = Volume()
 STATE_VARIABLES['RC']['Mute'] = Mute()
+STATE_VARIABLES['AVT']['TransportState'] = TransportState()
+STATE_VARIABLES['AVT']['TrackDuration'] = TrackDuration()
 
 
 @asyncio.coroutine
 def async_handle_control_rc(request):
     ns = 'urn:schemas-upnp-org:service:RenderingControl:1'
     response = yield from async_handle_control(request, STATE_VARIABLES['RC'], ns)
-    return response
-
-
-@asyncio.coroutine
-def async_handle_control_cm(request):
-    ns = 'urn:schemas-upnp-org:service:ConnectionManager:1'
-    response = yield from async_handle_control(request, STATE_VARIABLES['CM'], ns)
     return response
 
 
@@ -217,12 +237,6 @@ def async_handle_subscribe_rc(request):
 
 
 @asyncio.coroutine
-def async_handle_subscribe_cm(request):
-    response = yield from async_handle_subscribe(request, SUBSCRIBED_CLIENTS['CM'], STATE_VARIABLES['CM'])
-    return response
-
-
-@asyncio.coroutine
 def async_handle_subscribe_avt(request):
     response = yield from async_handle_subscribe(request, SUBSCRIBED_CLIENTS['AVT'], STATE_VARIABLES['AVT'])
     return response
@@ -259,12 +273,6 @@ def async_handle_unsubscribe_rc(request):
 
 
 @asyncio.coroutine
-def async_handle_unsubscribe_cm(request):
-    response = yield from async_handle_unsubscribe(request, SUBSCRIBED_CLIENTS['CM'])
-    return response
-
-
-@asyncio.coroutine
 def async_handle_unsubscribe_avt(request):
     response = yield from async_handle_unsubscribe(request, SUBSCRIBED_CLIENTS['AVT'])
     return response
@@ -287,10 +295,6 @@ app.router.add_static('/', path='fixtures/', name='static')
 app.router.add_route('POST', '/upnp/control/RenderingControl1', async_handle_control_rc)
 app.router.add_route('SUBSCRIBE', '/upnp/event/RenderingControl1', async_handle_subscribe_rc)
 app.router.add_route('UNSUBSCRIBE', '/upnp/event/RenderingControl1', async_handle_unsubscribe_rc)
-
-app.router.add_route('POST', '/upnp/control/ConnectionManager1', async_handle_control_cm)
-app.router.add_route('SUBSCRIBE', '/upnp/event/ConnectionManager1', async_handle_subscribe_cm)
-app.router.add_route('UNSUBSCRIBE', '/upnp/event/ConnectionManager1', async_handle_unsubscribe_cm)
 
 app.router.add_route('POST', '/upnp/control/AVTransport1', async_handle_control_avt)
 app.router.add_route('SUBSCRIBE', '/upnp/event/AVTransport1', async_handle_subscribe_avt)

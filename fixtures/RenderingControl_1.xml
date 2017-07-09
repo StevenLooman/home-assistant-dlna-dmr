@@ -5,37 +5,7 @@
     <minor>0</minor>
   </specVersion>
   <actionList>
-    <action>  
-      <name>ListPresets</name>
-      <argumentList>
-        <argument>
-          <name>InstanceID</name>
-          <direction>in</direction>
-          <relatedStateVariable>A_ARG_TYPE_InstanceID</relatedStateVariable>
-        </argument>
-        <argument>
-          <name>CurrentPresetNameList</name>
-          <direction>out</direction>
-          <relatedStateVariable>PresetNameList</relatedStateVariable>
-        </argument>
-      </argumentList>
-    </action>
     <action>
-      <name>SelectPreset</name>
-      <argumentList>
-        <argument>
-          <name>InstanceID</name>
-          <direction>in</direction>
-          <relatedStateVariable>A_ARG_TYPE_InstanceID</relatedStateVariable>
-        </argument>
-        <argument>
-          <name>PresetName</name>
-          <direction>in</direction>
-          <relatedStateVariable>A_ARG_TYPE_PresetName</relatedStateVariable>
-        </argument>
-      </argumentList>
-    </action>
-    <action> 
       <name>GetMute</name>
       <argumentList>
         <argument>
@@ -115,178 +85,13 @@
         </argument>
       </argumentList>
     </action>
-    
-    <action>
-      <name>X_UpdateAudioSelection</name>
-      <argumentList>
-        <argument>
-          <name>InstanceID</name>
-          <direction>in</direction>
-          <relatedStateVariable>A_ARG_TYPE_InstanceID</relatedStateVariable>
-        </argument>
-        <argument>
-          <name>AudioPID</name>
-          <direction>in</direction>
-          <relatedStateVariable>X_AudioPID</relatedStateVariable>
-        </argument>
-        <argument>
-          <name>AudioEncoding</name>
-          <direction>in</direction>
-          <relatedStateVariable>X_AudioEncoding</relatedStateVariable>
-        </argument>
-      </argumentList>
-    </action>
-    <action>
-      <name>X_GetAudioSelection</name>
-      <argumentList>
-        <argument>
-          <name>InstanceID</name>
-          <direction>in</direction>
-          <relatedStateVariable>A_ARG_TYPE_InstanceID</relatedStateVariable>
-        </argument>
-        <argument>
-          <name>AudioPID</name>
-          <direction>out</direction>
-          <relatedStateVariable>X_AudioPID</relatedStateVariable>
-        </argument>
-        <argument>
-          <name>AudioEncoding</name>
-          <direction>out</direction>
-          <relatedStateVariable>X_AudioEncoding</relatedStateVariable>
-        </argument>
-      </argumentList>
-    </action>
-    <action>
-      <name>X_UpdateVideoSelection</name>
-      <argumentList>
-        <argument>
-          <name>InstanceID</name>
-          <direction>in</direction>
-          <relatedStateVariable>A_ARG_TYPE_InstanceID</relatedStateVariable>
-        </argument>
-        <argument>
-          <name>VideoPID</name>
-          <direction>in</direction>
-          <relatedStateVariable>X_VideoPID</relatedStateVariable>
-        </argument>
-        <argument>
-          <name>VideoEncoding</name>
-          <direction>in</direction>
-          <relatedStateVariable>X_VideoEncoding</relatedStateVariable>
-        </argument>
-      </argumentList>
-    </action>
-    <action>
-      <name>X_GetVideoSelection</name>
-      <argumentList>
-        <argument>
-          <name>InstanceID</name>
-          <direction>in</direction>
-          <relatedStateVariable>A_ARG_TYPE_InstanceID</relatedStateVariable>
-        </argument>
-        <argument>
-          <name>VideoPID</name>
-          <direction>out</direction>
-          <relatedStateVariable>X_VideoPID</relatedStateVariable>
-        </argument>
-        <argument>
-          <name>VideoEncoding</name>
-          <direction>out</direction>
-          <relatedStateVariable>X_VideoEncoding</relatedStateVariable>
-        </argument>
-      </argumentList>
-    </action>
-
-    <action>
-      <name>X_SetZoom</name>
-      <argumentList>
-        <argument>
-          <name>InstanceID</name>
-          <direction>in</direction>
-          <relatedStateVariable>A_ARG_TYPE_InstanceID</relatedStateVariable>
-        </argument>
-        <argument>
-          <name>x</name>
-          <direction>in</direction>
-          <relatedStateVariable>A_ARG_TYPE_Coordinate</relatedStateVariable>
-        </argument>
-        <argument>
-          <name>y</name>
-          <direction>in</direction>
-          <relatedStateVariable>A_ARG_TYPE_Coordinate</relatedStateVariable>
-        </argument>
-        <argument>
-          <name>w</name>
-          <direction>in</direction>
-          <relatedStateVariable>A_ARG_TYPE_Coordinate</relatedStateVariable>
-        </argument>
-        <argument>
-          <name>h</name>
-          <direction>in</direction>
-          <relatedStateVariable>A_ARG_TYPE_Coordinate</relatedStateVariable>
-        </argument>
-      </argumentList>
-    </action>
-
-    <action>
-      <name>X_GetTVSlideShow</name>
-      <argumentList>
-        <argument>
-          <name>InstanceID</name>
-          <direction>in</direction>
-          <relatedStateVariable>A_ARG_TYPE_InstanceID</relatedStateVariable>
-        </argument>
-        <argument>
-          <name>CurrentShowState</name>
-          <direction>out</direction>
-          <relatedStateVariable>A_ARG_TYPE_SlideShowState</relatedStateVariable>
-        </argument>
-        <argument>
-          <name>CurrentThemeId</name>
-          <direction>out</direction>
-          <relatedStateVariable>A_ARG_TYPE_ThemeId</relatedStateVariable>
-        </argument>
-        <argument>
-          <name>TotalThemeNumber</name>
-          <direction>out</direction>
-          <relatedStateVariable>A_ARG_TYPE_TotalThemeNumber</relatedStateVariable>
-        </argument>
-      </argumentList>
-    </action>
-    <action>
-      <name>X_SetTVSlideShow</name>
-      <argumentList>
-        <argument>
-          <name>InstanceID</name>
-          <direction>in</direction>
-          <relatedStateVariable>A_ARG_TYPE_InstanceID</relatedStateVariable>
-        </argument>
-        <argument>
-          <name>CurrentShowState</name>
-          <direction>in</direction>
-          <relatedStateVariable>A_ARG_TYPE_SlideShowState</relatedStateVariable>
-        </argument>
-        <argument>
-          <name>CurrentShowTheme</name>
-          <direction>in</direction>
-          <relatedStateVariable>A_ARG_TYPE_ThemeId</relatedStateVariable>
-        </argument>
-      </argumentList>
-    </action>
-
   </actionList>
   <serviceStateTable>
-    <stateVariable sendEvents="no">
-      <name>PresetNameList</name> 
-      <dataType>string</dataType>
-      <defaultValue>FactoryDefaults</defaultValue>
-    </stateVariable>
-    <stateVariable sendEvents="yes"> 
+    <stateVariable sendEvents="yes">
       <name>LastChange</name> 
       <dataType>string</dataType>
     </stateVariable>
-    
-    <stateVariable sendEvents="no"> 
+    <stateVariable sendEvents="no">
       <name>Mute</name>  
       <dataType>boolean</dataType>
     </stateVariable>
@@ -310,59 +115,5 @@
       <name>A_ARG_TYPE_InstanceID</name>  
       <dataType>ui4</dataType>
     </stateVariable>
-    <stateVariable sendEvents="no">
-      <name>A_ARG_TYPE_PresetName</name>  
-      <dataType>string</dataType>
-      <allowedValueList>
-        <allowedValue>FactoryDefaults</allowedValue>
-      </allowedValueList>
-    </stateVariable>
-    
-    <stateVariable sendEvents="no">
-      <name>X_AudioPID</name>
-      <dataType>ui2</dataType>
-      <defaultValue>0</defaultValue>
-      <allowedValueRange>
-        <minimum>0</minimum>
-        <maximum>65535</maximum>
-        <step>1</step>
-      </allowedValueRange>
-    </stateVariable>
-    <stateVariable sendEvents="no">
-      <name>X_AudioEncoding</name>
-      <dataType>string</dataType>
-    </stateVariable>
-    <stateVariable sendEvents="no">
-      <name>X_VideoPID</name>
-      <dataType>ui2</dataType>
-      <defaultValue>0</defaultValue>
-      <allowedValueRange>
-        <minimum>0</minimum>
-        <maximum>65535</maximum>
-        <step>1</step>
-      </allowedValueRange>
-    </stateVariable>
-    <stateVariable sendEvents="no">
-      <name>X_VideoEncoding</name>
-      <dataType>string</dataType>
-    </stateVariable>
-
-    <stateVariable sendEvents="no">
-      <name>A_ARG_TYPE_Coordinate</name>
-      <dataType>ui4</dataType>
-    </stateVariable>
-    <stateVariable sendEvents="no">
-      <name>A_ARG_TYPE_SlideShowState</name>
-      <dataType>boolean</dataType>
-    </stateVariable>
-    <stateVariable sendEvents="no">
-      <name>A_ARG_TYPE_ThemeId</name>
-      <dataType>ui4</dataType>
-    </stateVariable>
-    <stateVariable sendEvents="no">
-      <name>A_ARG_TYPE_TotalThemeNumber</name>
-      <dataType>ui4</dataType>
-    </stateVariable>
-
   </serviceStateTable>
 </scpd>

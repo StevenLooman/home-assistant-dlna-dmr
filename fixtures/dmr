@@ -6,49 +6,11 @@
   </specVersion>
   <device>
     <deviceType>urn:schemas-upnp-org:device:MediaRenderer:1</deviceType>
-    <pnpx:X_compatibleId>MS_DigitalMediaDeviceClass_DMR_V001</pnpx:X_compatibleId>
-    <df:X_deviceCategory>Display.TV.LCD Multimedia.DMR</df:X_deviceCategory>
-    <dlna:X_DLNADOC xmlns:dlna="urn:schemas-dlna-org:device-1-0">DMR-1.50</dlna:X_DLNADOC>
-    <friendlyName>[TV] Samsung 6 Series (50)</friendlyName>
-    <manufacturer>Samsung Electronics</manufacturer>
-    <manufacturerURL>http://www.samsung.com/sec</manufacturerURL>
-    <modelDescription>Samsung TV DMR</modelDescription>
-    <modelName>UE50KU6000</modelName>
-    <modelNumber>AllShare1.0</modelNumber>
-    <modelURL>http://www.samsung.com/sec</modelURL>
-    <serialNumber>0CCS3HIHC00137H</serialNumber>
-    <UDN>uuid:4d672690-9e27-4f2a-8426-3e8334427884</UDN>
-    <sec:deviceID/>
-    <iconList>
-      <icon>
-        <mimetype>image/jpeg</mimetype>
-        <width>48</width>
-        <height>48</height>
-        <depth>24</depth>
-        <url>/icon_SML.jpg</url>
-      </icon>
-      <icon>
-        <mimetype>image/jpeg</mimetype>
-        <width>120</width>
-        <height>120</height>
-        <depth>24</depth>
-        <url>/icon_LRG.jpg</url>
-      </icon>
-      <icon>
-        <mimetype>image/png</mimetype>
-        <width>48</width>
-        <height>48</height>
-        <depth>24</depth>
-        <url>/icon_SML.png</url>
-      </icon>
-      <icon>
-        <mimetype>image/png</mimetype>
-        <width>120</width>
-        <height>120</height>
-        <depth>24</depth>
-        <url>/icon_LRG.png</url>
-      </icon>
-    </iconList>
+    <friendlyName>Dummy TV</friendlyName>
+    <manufacturer>Steven</manufacturer>
+    <modelDescription>Dummy TV DMR</modelDescription>
+    <modelName>DummyTV v1</modelName>
+    <UDN>uuid:00000000-0000-0000-0000-000000000000</UDN>
     <serviceList>
       <service>
         <serviceType>urn:schemas-upnp-org:service:RenderingControl:1</serviceType>
@@ -58,28 +20,12 @@
         <SCPDURL>/RenderingControl_1.xml</SCPDURL>
       </service>
       <service>
-        <serviceType>urn:schemas-upnp-org:service:ConnectionManager:1</serviceType>
-        <serviceId>urn:upnp-org:serviceId:ConnectionManager</serviceId>
-        <controlURL>/upnp/control/ConnectionManager1</controlURL>
-        <eventSubURL>/upnp/event/ConnectionManager1</eventSubURL>
-        <SCPDURL>/ConnectionManager_1.xml</SCPDURL>
-      </service>
-      <service>
         <serviceType>urn:schemas-upnp-org:service:AVTransport:1</serviceType>
         <serviceId>urn:upnp-org:serviceId:AVTransport</serviceId>
         <controlURL>/upnp/control/AVTransport1</controlURL>
         <eventSubURL>/upnp/event/AVTransport1</eventSubURL>
         <SCPDURL>/AVTransport_1.xml</SCPDURL>
       </service>
-      <service>
-        <serviceType>urn:schemas-rvualliance-org:service:StreamSplicing:1</serviceType>
-        <serviceId>urn:upnp-org:serviceId:StreamSplicing</serviceId>
-        <controlURL>/upnp/control/StreamSplicing1</controlURL>
-        <eventSubURL>/upnp/event/StreamSplicing1</eventSubURL>
-        <SCPDURL>/StreamSplicing_1.xml</SCPDURL>
-      </service>
     </serviceList>
-    <sec:ProductCap>Tizen,Y2016,WebURIPlayable,NavigateInPause,ScreenMirroringP2PMAC=5e:49:7d:6d:c3:cf,UHD_SCREEN,SerialNumber=0CCS3HIHC00137H</sec:ProductCap>
-    <pnpx:X_hardwareId>VEN_0105&amp;DEV_VD0001</pnpx:X_hardwareId>
   </device>
 </root>
