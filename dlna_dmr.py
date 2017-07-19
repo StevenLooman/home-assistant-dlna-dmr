@@ -297,12 +297,7 @@ class DlnaDmrDevice(MediaPlayerDevice):
         _LOGGER.debug('%s._async_init_device()', self)
         requester = HassUpnpRequester(self.hass)
         factory = UpnpFactory(requester)
-        try:
-            self._device = yield from factory.async_create_device(self._url)
-        except Exception as ex:  # pylint: disable=broad-except
-            _LOGGER.debug('%s._init_services(): caught exception: %s', self, ex)
-            #raise
-            return
+        self._device = yield from factory.async_create_device(self._url)
 
         # set name
         if self.name is None or self.name == DEFAULT_NAME:
@@ -317,8 +312,6 @@ class DlnaDmrDevice(MediaPlayerDevice):
             if sid:
                 self._callback_view.register_service(sid, service)
 
-        self._is_connected = True
-
     @asyncio.coroutine
     def async_update(self):
         """Retrieve the latest data."""
@@ -328,22 +321,24 @@ class DlnaDmrDevice(MediaPlayerDevice):
             try:
                 yield from self._async_init_device()
             except (asyncio.TimeoutError, aiohttp.ClientError):
-                # Not alive, leave for now
-                pass
-            return
+                # Not yet seen alive, leave for now, gracefully
+                _LOGGER.debug('%s._async_update(): device not seen yet, leaving', self)
+                return
 
         # XXX TODO: if re-connected, then (re-)subscribe
 
         # call GetTransportInfo/GetPositionInfo regularly
         try:
             _LOGGER.debug('%s.async_update(): calling...', self)
-            st = SERVICE_TYPES['AVT']
-            avt_service = self._device.service(st)
+            avt_service = self._service('AVT')
             if avt_service:
-                state = yield from self._async_poll_transport_info()  # pylint: disable=no-value-for-parameter
+                get_transport_info_action = avt_service.action('GetTransportInfo')
+                state = yield from self._async_poll_transport_info(get_transport_info_action)
 
                 if state == STATE_PLAYING or state == STATE_PAUSED:
-                    yield from self._async_poll_position_info()   # pylint: disable=no-value-for-parameter
+                    # playing something... get position info
+                    get_position_info_action = avt_service.action('GetPositionInfo')
+                    yield from self._async_poll_position_info(get_position_info_action)
             else:
                 _LOGGER.debug('%s.async_update(): pinging...', self)
                 yield from self._device.async_ping()
@@ -351,14 +346,10 @@ class DlnaDmrDevice(MediaPlayerDevice):
             self._is_connected = True
         except (asyncio.TimeoutError, aiohttp.ClientError) as ex:
             _LOGGER.debug('%s.async_update(): error on update: %s', self, ex)
-            # be graceful, don't spam the error log when this is expected
             self._is_connected = False
-
             yield from self.async_unsubscribe_all()
 
     @asyncio.coroutine
-    @requires_action('AVT', 'GetTransportInfo')
-    # pylint: disable=arguments-differ
     def _async_poll_transport_info(self, action):
         """Update transport info from device."""
         _LOGGER.debug('%s._async_poll_transport_info()', self)
@@ -373,16 +364,12 @@ class DlnaDmrDevice(MediaPlayerDevice):
         state_var.value = result['CurrentTransportState']
 
         if old_value != result['CurrentTransportState']:
-            # XXX TODO: double notification? through state_variable.on_update and
-            #           via self.on_state_var_change() ?
             self.on_state_variable_change(service, [state_var])
 
         _LOGGER.debug('%s._async_poll_transport_info(): state: %s', self, self.state)
         return self.state
 
     @asyncio.coroutine
-    @requires_action('AVT', 'GetPositionInfo')
-    # pylint: disable=arguments-differ
     def _async_poll_position_info(self, action):
         """Update position info"""
         _LOGGER.debug('%s._async_poll_position_info()', self)
@@ -570,8 +557,7 @@ class DlnaDmrDevice(MediaPlayerDevice):
         if not self._is_connected:
             return STATE_OFF
 
-        st = SERVICE_TYPES['AVT']
-        avt_service = self._device.service(st)
+        avt_service = self._service('AVT')
         if not avt_service:
             return STATE_ON
 
