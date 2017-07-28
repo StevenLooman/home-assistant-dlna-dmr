@@ -257,6 +257,10 @@ class DlnaDmrDevice(MediaPlayerDevice):
 
         hass.bus.listen_once(EVENT_HOMEASSISTANT_STOP, self._async_on_hass_stop)
 
+    @property
+    def available(self):
+        return self._is_connected
+
     @asyncio.coroutine
     def _async_on_hass_stop(self, event):
         """Event handler on HASS stop."""
