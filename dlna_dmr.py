@@ -161,7 +161,7 @@ def setup_platform(hass: HomeAssistant, config, add_devices, discovery_info=None
     device = DlnaDmrDevice(hass, url, name, view)
 
     _LOGGER.debug("Adding device: %s", device)
-    add_devices([device])
+    add_devices([device], True)
 
 
 class UpnpNotifyView(HomeAssistantView):
