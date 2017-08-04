@@ -259,6 +259,7 @@ class DlnaDmrDevice(MediaPlayerDevice):
 
     @property
     def available(self):
+        """Device is avaiable?"""
         return self._is_connected
 
     @asyncio.coroutine
