@@ -70,6 +70,7 @@ def requires_action(service_type, action_name, value_not_connected=None):
             Require device is connected and has service/action.
             If device is not connected, value_not_connected is returned.
             """
+            # pylint: disable=protected-access
 
             # _LOGGER.debug('needs_action(): %s.%s', self, func.__name__)
             if not self._is_connected:
@@ -82,7 +83,6 @@ def requires_action(service_type, action_name, value_not_connected=None):
                               self, func.__name__, service_type)
                 raise NotImplementedError()
 
-            # pylint: disable=protected-access
             action = service.action(action_name)
             if not action:
                 _LOGGER.error('requires_action(): %s.%s: no action: %s.%s',
@@ -107,6 +107,7 @@ def requires_state_variable(service_type, state_variable_name, value_not_connect
             Require device is connected and has service/state_variable.
             If device is not connected, value_not_connected is returned.
             """
+            # pylint: disable=protected-access
 
             # _LOGGER.debug('needs_service(): %s.%s', self, func.__name__)
             if not self._is_connected:
@@ -119,7 +120,6 @@ def requires_state_variable(service_type, state_variable_name, value_not_connect
                               self, func.__name__, service_type)
                 raise NotImplementedError()
 
-            # pylint: disable=protected-access
             state_var = service.state_variable(state_variable_name)
             if not state_var:
                 _LOGGER.error('requires_state_variable(): %s.%s: no state_variable: %s.%s',
@@ -438,8 +438,7 @@ class DlnaDmrDevice(MediaPlayerDevice):
 
     @property
     @requires_state_variable('RC', 'Volume')
-    # pylint: disable=arguments-differ
-    def volume_level(self, state_variable):
+    def volume_level(self, state_variable):  # pylint: disable=arguments-differ
         """Volume level of the media player (0..1)."""
         value = state_variable.value
         if value is None:
@@ -452,8 +451,7 @@ class DlnaDmrDevice(MediaPlayerDevice):
 
     @asyncio.coroutine
     @requires_action('RC', 'SetVolume')
-    # pylint: disable=arguments-differ
-    def async_set_volume_level(self, action, volume):
+    def async_set_volume_level(self, action, volume):  # pylint: disable=arguments-differ
         """Set volume level, range 0..1."""
         _LOGGER.debug('%s.async_set_volume_level(): %s', self, volume)
         state_variable = action.argument('DesiredVolume').related_state_variable
@@ -466,15 +464,13 @@ class DlnaDmrDevice(MediaPlayerDevice):
 
     @property
     @requires_state_variable('RC', 'Mute')
-    # pylint: disable=arguments-differ
-    def is_volume_muted(self, state_variable):
+    def is_volume_muted(self, state_variable):  # pylint: disable=arguments-differ
         """Boolean if volume is currently muted."""
         return state_variable.value
 
     @asyncio.coroutine
     @requires_action('RC', 'SetMute')
-    # pylint: disable=arguments-differ
-    def async_mute_volume(self, action, mute):
+    def async_mute_volume(self, action, mute):  # pylint: disable=arguments-differ
         """Mute the volume."""
         _LOGGER.debug('%s.async_mute_volume(): %s', self, mute)
         desired_mute = bool(mute)
@@ -482,48 +478,42 @@ class DlnaDmrDevice(MediaPlayerDevice):
 
     @asyncio.coroutine
     @requires_action('AVT', 'Pause')
-    # pylint: disable=arguments-differ
-    def async_media_pause(self, action):
+    def async_media_pause(self, action):  # pylint: disable=arguments-differ
         """Send pause command."""
         _LOGGER.debug('%s.async_media_pause()', self)
         yield from action.async_call(InstanceID=0)
 
     @asyncio.coroutine
     @requires_action('AVT', 'Play')
-    # pylint: disable=arguments-differ
-    def async_media_play(self, action):
+    def async_media_play(self, action):  # pylint: disable=arguments-differ
         """Send play command."""
         _LOGGER.debug('%s.async_media_play()', self)
         yield from action.async_call(InstanceID=0, Speed='1')
 
     @asyncio.coroutine
     @requires_action('AVT', 'Stop')
-    # pylint: disable=arguments-differ
-    def async_media_stop(self, action):
+    def async_media_stop(self, action):  # pylint: disable=arguments-differ
         """Send stop command."""
         _LOGGER.debug('%s.async_media_stop()', self)
         yield from action.async_call(InstanceID=0)
 
     @asyncio.coroutine
     @requires_action('AVT', 'Previous')
-    # pylint: disable=arguments-differ
-    def async_media_previous_track(self, action):
+    def async_media_previous_track(self, action):  # pylint: disable=arguments-differ
         """Send previous track command."""
         _LOGGER.debug('%s.async_media_previous_track()', self)
         yield from action.async_call(InstanceID=0)
 
     @asyncio.coroutine
     @requires_action('AVT', 'Next')
-    # pylint: disable=arguments-differ
-    def async_media_next_track(self, action):
+    def async_media_next_track(self, action):  # pylint: disable=arguments-differ
         """Send next track command."""
         _LOGGER.debug('%s.async_media_next_track()', self)
         yield from action.async_call(InstanceID=0)
 
     @property
     @requires_state_variable('AVT', 'CurrentTrackMetaData')
-    # pylint: disable=arguments-differ
-    def media_title(self, state_variable):
+    def media_title(self, state_variable):  # pylint: disable=arguments-differ
         """Title of current playing media."""
         xml = state_variable.value
         if not xml:
@@ -538,8 +528,7 @@ class DlnaDmrDevice(MediaPlayerDevice):
 
     @property
     @requires_state_variable('AVT', 'CurrentTrackMetaData')
-    # pylint: disable=arguments-differ
-    def media_image_url(self, state_variable):
+    def media_image_url(self, state_variable):  # pylint: disable=arguments-differ
         """Image url of current playing media."""
         xml = state_variable.value
         if not xml:
@@ -577,8 +566,7 @@ class DlnaDmrDevice(MediaPlayerDevice):
 
     @property
     @requires_state_variable('AVT', 'CurrentTrackDuration')
-    # pylint: disable=arguments-differ
-    def media_duration(self, state_variable):
+    def media_duration(self, state_variable):  # pylint: disable=arguments-differ
         """Duration of current playing media in seconds."""
         if state_variable is None or state_variable.value is None:
             return None
@@ -589,8 +577,7 @@ class DlnaDmrDevice(MediaPlayerDevice):
 
     @property
     @requires_state_variable('AVT', 'RelativeTimePosition')
-    # pylint: disable=arguments-differ
-    def media_position(self, state_variable):
+    def media_position(self, state_variable):  # pylint: disable=arguments-differ
         """Position of current playing media in seconds."""
         if state_variable is None or state_variable.value is None:
             return None
@@ -601,8 +588,7 @@ class DlnaDmrDevice(MediaPlayerDevice):
 
     @property
     @requires_state_variable('AVT', 'RelativeTimePosition')
-    # pylint: disable=arguments-differ
-    def media_position_updated_at(self, state_variable):
+    def media_position_updated_at(self, state_variable):  # pylint: disable=arguments-differ
         """When was the position of the current playing media valid.
 
         Returns value from homeassistant.util.dt.utcnow().
