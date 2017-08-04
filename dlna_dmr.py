@@ -272,8 +272,8 @@ class DlnaDmrDevice(MediaPlayerDevice):
         if not self._device:
             return
 
-        st = SERVICE_TYPES.get(service_type, service_type)
-        return self._device.service(st)
+        service_type = SERVICE_TYPES.get(service_type, service_type)
+        return self._device.service(service_type)
 
     @asyncio.coroutine
     def async_unsubscribe_all(self):
