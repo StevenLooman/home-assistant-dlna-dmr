@@ -14,7 +14,6 @@ import aiohttp
 import async_timeout
 import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
-from async_upnp_client import UpnpFactory, UpnpRequester
 from homeassistant.components.http.view import (
     request_handler_factory, HomeAssistantView)
 from homeassistant.components.media_player import (
@@ -157,7 +156,11 @@ def setup_platform(hass: HomeAssistant, config, add_devices, discovery_info=None
         return view
 
     view = start_notify_view()
-    device = DlnaDmrDevice(hass, url, name, view)
+
+    from async_upnp_client import UpnpFactory
+    requester = HassUpnpRequester(hass)
+    factory = UpnpFactory(requester)
+    device = DlnaDmrDevice(hass, url, name, view, factory)
 
     _LOGGER.debug("Adding device: %s", device)
     add_devices([device], True)
@@ -221,7 +224,7 @@ class UpnpNotifyView(HomeAssistantView):
             del self._registered_services[sid]
 
 
-class HassUpnpRequester(UpnpRequester):
+class HassUpnpRequester(object):
     """UpnpRequester for home-assistant."""
 
     def __init__(self, hass):
@@ -244,11 +247,12 @@ class HassUpnpRequester(UpnpRequester):
 class DlnaDmrDevice(MediaPlayerDevice):
     """Representation of a DLNA DMR device."""
 
-    def __init__(self, hass, url, name, callback_view, **additional_configuration):
+    def __init__(self, hass, url, name, callback_view, factory, **additional_configuration):
         self.hass = hass
         self._url = url
         self._name = name
         self._callback_view = callback_view
+        self._factory = factory
         self._additional_configuration = additional_configuration
 
         self._device = None
@@ -299,9 +303,7 @@ class DlnaDmrDevice(MediaPlayerDevice):
     def _async_init_device(self):
         """Fetch and init services."""
         _LOGGER.debug('%s._async_init_device()', self)
-        requester = HassUpnpRequester(self.hass)
-        factory = UpnpFactory(requester)
-        self._device = yield from factory.async_create_device(self._url)
+        self._device = yield from self._factory.async_create_device(self._url)
 
         # set name
         if self.name is None or self.name == DEFAULT_NAME:
