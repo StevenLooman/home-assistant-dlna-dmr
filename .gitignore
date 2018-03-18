@@ -1,6 +1,7 @@
 *.pyc
 *.egg*
 .cache
+.idea
 .pytest_cache
 .tox
 __pycache__
