@@ -4,8 +4,7 @@ DLNA Media Renderer component
 Note: this is a work in progress. Currently only tested with my own Samsung TV, YMMV! Please test and create issues.
 
 ## Installation and configuration
-Copy (or symlink) `dlna_dmr.py` to `~/.homeassistant/custom_components/media_player`.
-Copy (or symlink) `upnp_client.py` to `~/.homeassistant/custom_components/media_player`.
+Copy (or symlink) `home_assistant_dlna_dmr/dlna_dmr.py` to `~/.homeassistant/custom_components/media_player`.
 
 Add this to your `~/.homeassistant/configuration.yaml`:
 ```

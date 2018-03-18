@@ -14,6 +14,7 @@ import aiohttp
 import async_timeout
 import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
+from async_upnp_client import UpnpFactory, UpnpRequester
 from homeassistant.components.http.view import (
     request_handler_factory, HomeAssistantView)
 from homeassistant.components.media_player import (
@@ -29,10 +30,8 @@ from homeassistant.const import (
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from .upnp_client import UpnpFactory, UpnpRequester
 
-
-REQUIREMENTS = []
+REQUIREMENTS = ['async_upnp_client==0.9.0']
 
 DEFAULT_NAME = 'DLNA_DMR'
 CONF_MAX_VOLUME = 'max_volume'

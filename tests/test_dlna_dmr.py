@@ -1,9 +1,8 @@
 import asyncio
 import pytest
 from unittest.mock import MagicMock
-from tests.common import get_test_home_assistant
 
-from dlna_dmr import DlnaDmrDevice
+from home_assistant_dlna_dmr import DlnaDmrDevice
 
 
 class MockUpnpStateVariable(object):
