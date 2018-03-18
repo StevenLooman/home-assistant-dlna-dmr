@@ -14,7 +14,7 @@ import aiohttp
 import async_timeout
 import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
-from homeassistant.components.http import (
+from homeassistant.components.http.view import (
     request_handler_factory, HomeAssistantView)
 from homeassistant.components.media_player import (
     SUPPORT_PLAY, SUPPORT_PAUSE, SUPPORT_STOP,
