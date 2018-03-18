@@ -236,7 +236,7 @@ class HassUpnpRequester(UpnpRequester):
                 response = yield from websession.request(method, url, headers=headers, data=body)
                 response_body = yield from response.text()
         except (asyncio.TimeoutError, aiohttp.ClientError) as ex:
-            _LOGGER.debug("Error in %s.async_call_action(): %s", self, ex)
+            _LOGGER.debug("Error in %s.async_http_request(): %s", self, ex)
             raise
 
         return response.status, response.headers, response_body
