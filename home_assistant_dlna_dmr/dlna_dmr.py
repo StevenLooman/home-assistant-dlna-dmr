@@ -1,7 +1,8 @@
+# -*- coding: utf-8 -*-
 """
 Support for DLNA DMR (Device Media Renderer)
-Most likely your TV
 """
+
 import asyncio
 import functools
 import logging
@@ -414,6 +415,7 @@ class DlnaDmrDevice(MediaPlayerDevice):
         avt_service = self._service('AVT')
         if avt_service:
             state_var = avt_service.state_variable('CurrentTransportActions')
+            _LOGGER.debug('%s.supported_features(): State: %s', self, state_var.value)
             if state_var:
                 value = state_var.value or ''
                 actions = value.split(',')
