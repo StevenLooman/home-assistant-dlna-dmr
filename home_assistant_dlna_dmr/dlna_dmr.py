@@ -524,8 +524,7 @@ class DlnaDmrDevice(MediaPlayerDevice):
         yield from action.async_call(InstanceID=0, CurrentURI=media_id, CurrentURIMetaData=meta_data)
 
         # send play command
-        #yield from asyncio.sleep(2)
-        #yield from self.async_media_play()
+        yield from self.async_media_play()
 
     @asyncio.coroutine
     @requires_action('AVT', 'Previous')
