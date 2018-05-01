@@ -20,6 +20,7 @@ from homeassistant.components.http.view import (
 from homeassistant.components.media_player import (
     SUPPORT_PLAY, SUPPORT_PAUSE, SUPPORT_STOP,
     SUPPORT_VOLUME_MUTE, SUPPORT_VOLUME_SET,
+    SUPPORT_PLAY_MEDIA,
     SUPPORT_PREVIOUS_TRACK, SUPPORT_NEXT_TRACK,
     MediaPlayerDevice,
     PLATFORM_SCHEMA)
@@ -31,7 +32,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 
-REQUIREMENTS = ['async_upnp_client==0.9.0']
+REQUIREMENTS = ['async_upnp_client==0.9.1']
 
 DEFAULT_NAME = 'DLNA_DMR'
 CONF_MAX_VOLUME = 'max_volume'
@@ -438,6 +439,10 @@ class DlnaDmrDevice(MediaPlayerDevice):
                 if num_tracks > current_track:
                     supported_features |= SUPPORT_NEXT_TRACK
 
+            play_media_action = avt_service.action('SetAVTransportURI')
+            if play_media_action:
+                supported_features |= SUPPORT_PLAY_MEDIA
+
         return supported_features
 
     @property
@@ -484,22 +489,43 @@ class DlnaDmrDevice(MediaPlayerDevice):
     @requires_action('AVT', 'Pause')
     def async_media_pause(self, action):  # pylint: disable=arguments-differ
         """Send pause command."""
-        _LOGGER.debug('%s.async_media_pause()', self)
+        #_LOGGER.debug('%s.async_media_pause()', self)
         yield from action.async_call(InstanceID=0)
 
     @asyncio.coroutine
     @requires_action('AVT', 'Play')
     def async_media_play(self, action):  # pylint: disable=arguments-differ
         """Send play command."""
-        _LOGGER.debug('%s.async_media_play()', self)
+        #_LOGGER.debug('%s.async_media_play()', self)
         yield from action.async_call(InstanceID=0, Speed='1')
 
     @asyncio.coroutine
     @requires_action('AVT', 'Stop')
     def async_media_stop(self, action):  # pylint: disable=arguments-differ
         """Send stop command."""
-        _LOGGER.debug('%s.async_media_stop()', self)
+        #_LOGGER.debug('%s.async_media_stop()', self)
         yield from action.async_call(InstanceID=0)
+
+    @asyncio.coroutine
+    @requires_action('AVT', 'SetAVTransportURI')
+    def async_play_media(self, action, media_type, media_id, **kwargs):  # pylint: disable=arguments-differ
+        _LOGGER.debug('%s.async_play_media(): %s, %s, %s', self, media_type, media_id, kwargs)
+        meta_data = """<DIDL-Lite xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/" xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/"
+                                  xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:sec="http://www.sec.co.kr/">
+<item id="0" parentID="0" restricted="1">
+  <dc:title>Home Assistant</dc:title>
+  <upnp:class>object.item.audioItem</upnp:class>
+  <res protocolInfo="http-get:*:audio/mpeg:DLNA.ORG_PN=MP3;DLNA.ORG_OP=01;DLNA.ORG_FLAGS=01700000000000000000000000000000">{0}</res>
+</item>
+</DIDL-Lite>""".format(media_id)
+        # XXX TODO: move escaping to async_upnp_client
+        from xml.sax.saxutils import escape
+        meta_data = escape(meta_data)
+        yield from action.async_call(InstanceID=0, CurrentURI=media_id, CurrentURIMetaData=meta_data)
+
+        # send play command
+        #yield from asyncio.sleep(2)
+        #yield from self.async_media_play()
 
     @asyncio.coroutine
     @requires_action('AVT', 'Previous')
