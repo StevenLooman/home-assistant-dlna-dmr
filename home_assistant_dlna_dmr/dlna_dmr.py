@@ -647,8 +647,8 @@ class DlnaDmrDevice(MediaPlayerDevice):
     @property
     @requires_state_variable('RC', 'Volume')
     def volume_level(self, state_variable):
-        # pylint: disable=arguments-differ
         """Volume level of the media player (0..1)."""
+        # pylint: disable=arguments-differ
         value = state_variable.value
         if value is None:
             _LOGGER.debug('%s.volume_level(): Got no value', self)
@@ -661,8 +661,8 @@ class DlnaDmrDevice(MediaPlayerDevice):
     @asyncio.coroutine
     @requires_action('RC', 'SetVolume')
     def async_set_volume_level(self, action, volume):
-        # pylint: disable=arguments-differ
         """Set volume level, range 0..1."""
+        # pylint: disable=arguments-differ
         argument = action.argument('DesiredVolume')
         state_variable = argument.related_state_variable
         min_ = state_variable.min_value or 0
@@ -677,8 +677,8 @@ class DlnaDmrDevice(MediaPlayerDevice):
     @property
     @requires_state_variable('RC', 'Mute')
     def is_volume_muted(self, state_variable):
-        # pylint: disable=arguments-differ
         """Boolean if volume is currently muted."""
+        # pylint: disable=arguments-differ
         value = state_variable.value
         if value is None:
             _LOGGER.debug('%s.is_volume_muted(): Got no value', self)
@@ -689,8 +689,8 @@ class DlnaDmrDevice(MediaPlayerDevice):
     @asyncio.coroutine
     @requires_action('RC', 'SetMute')
     def async_mute_volume(self, action, mute):
-        # pylint: disable=arguments-differ
         """Mute the volume."""
+        # pylint: disable=arguments-differ
         desired_mute = bool(mute)
         yield from action.async_call(InstanceID=0,
                                      Channel='Master',
@@ -699,15 +699,15 @@ class DlnaDmrDevice(MediaPlayerDevice):
     @asyncio.coroutine
     @requires_action('AVT', 'Pause')
     def async_media_pause(self, action):
-        # pylint: disable=arguments-differ
         """Send pause command."""
+        # pylint: disable=arguments-differ
         yield from action.async_call(InstanceID=0)
 
     @asyncio.coroutine
     @requires_action('AVT', 'Play')
     def async_media_play(self, action):
-        # pylint: disable=arguments-differ
         """Send play command."""
+        # pylint: disable=arguments-differ
         yield from action.async_call(InstanceID=0, Speed='1')
 
     @asyncio.coroutine
