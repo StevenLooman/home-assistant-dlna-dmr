@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-Support for DLNA DMR (Device Media Renderer)
-"""
+"""Support for DLNA DMR (Device Media Renderer)."""
 
 import asyncio
 import functools
@@ -71,15 +69,18 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def requires_action(service_type, action_name, value_not_connected=None):
-    """Raise NotImplemented() if connected but service/action not available."""
+    """
+    Ensure service/action is available.
 
+    If not available, then raise NotImplemented.
+    """
     def call_wrapper(func):
-        """Call wrapper for decorator"""
-
+        """Call wrapper for decorator."""
         @functools.wraps(func)
         def wrapper(self, *args, **kwargs):
             """
             Require device is connected and has service/action.
+
             If device is not connected, value_not_connected is returned.
             """
             # pylint: disable=protected-access
@@ -110,21 +111,20 @@ def requires_state_variable(service_type,
                             state_variable_name,
                             value_not_connected=None):
     """
-    Raise NotImplemented() if connected but
-    service/state_variable not available.
-    """
+    Ensure service/state_variable is available.
 
+    If not available, then raise NotImplemented.
+    """
     def call_wrapper(func):
         """Call wrapper for decorator."""
-
         @functools.wraps(func)
         def wrapper(self, *args, **kwargs):
             """
             Require device is connected and has service/state_variable.
+
             If device is not connected, value_not_connected is returned.
             """
             # pylint: disable=protected-access
-
             if not self._is_connected:
                 return value_not_connected
 
@@ -244,13 +244,14 @@ def fetch_headers(hass, url, headers):
 
 
 class UpnpNotifyView(HomeAssistantView):
-    """Callback view for UPnP NOTIFY messages"""
+    """Callback view for UPnP NOTIFY messages."""
 
     url = '/api/dlna_dmr.notify'
     name = 'api:dlna_dmr:notify'
     requires_auth = False
 
     def __init__(self, hass):
+        """Initializer."""
         self.hass = hass
         self._registered_services = {}
         self._backlog = {}
@@ -263,7 +264,6 @@ class UpnpNotifyView(HomeAssistantView):
     @asyncio.coroutine
     def async_notify(self, request):
         """Callback method for NOTIFY requests."""
-
         if 'SID' not in request.headers:
             return aiohttp.web.Response(status=422)
 
@@ -287,9 +287,7 @@ class UpnpNotifyView(HomeAssistantView):
         return urllib.parse.urljoin(base_url, self.url)
 
     def register_service(self, sid, service):
-        """
-        Register a UpnpService under SID.
-        """
+        """Register a UpnpService under SID."""
         if sid in self._registered_services:
             raise RuntimeError('SID {} already registered.'.format(sid))
 
@@ -307,7 +305,7 @@ class UpnpNotifyView(HomeAssistantView):
 
 
 class PickyDeviceProxyView(HomeAssistantView):
-    """View to serve device"""
+    """View to serve device media."""
 
     url = '/api/dlna_dmr.proxy/{key}'
     proxy_path = '/api/dlna_dmr.proxy'
@@ -322,6 +320,7 @@ class PickyDeviceProxyView(HomeAssistantView):
     DLNA_TRANSFER_MODE = 'Streaming'
 
     def __init__(self, hass):
+        """Initializer."""
         self.hass = hass
         self._entries = {}
 
@@ -436,6 +435,7 @@ class HassUpnpRequester(object):
     """async_upnp_client.UpnpRequester for home-assistant."""
 
     def __init__(self, hass):
+        """Initializer."""
         self.hass = hass
 
     @asyncio.coroutine
@@ -458,6 +458,7 @@ class DlnaDmrDevice(MediaPlayerDevice):
     """Representation of a DLNA DMR device."""
 
     def __init__(self, hass, url, name, factory, **additional_configuration):
+        """Initializer."""
         self.hass = hass
         self._url = url
         self._name = name
@@ -474,7 +475,7 @@ class DlnaDmrDevice(MediaPlayerDevice):
 
     @property
     def available(self):
-        """Device is avaiable?"""
+        """Device is available."""
         return self._is_connected
 
     @asyncio.coroutine
@@ -494,6 +495,7 @@ class DlnaDmrDevice(MediaPlayerDevice):
     def async_unsubscribe_all(self):
         """
         Disconnect from device.
+
         This removes all UpnpServices.
         """
         if not self._device:
@@ -579,7 +581,7 @@ class DlnaDmrDevice(MediaPlayerDevice):
 
     @asyncio.coroutine
     def _async_poll_position_info(self, action):
-        """Update position info"""
+        """Update position info."""
         result = yield from action.async_call(InstanceID=0)
 
         service = action.service
@@ -592,7 +594,7 @@ class DlnaDmrDevice(MediaPlayerDevice):
         self.on_state_variable_change(service, [track_duration, time_position])
 
     def on_state_variable_change(self, service, state_variables):
-        """State variable(s) changed, let homeassistant know"""
+        """State variable(s) changed, let home-assistant know."""
         self.schedule_update_ha_state()
 
     @property
@@ -903,4 +905,5 @@ class DlnaDmrDevice(MediaPlayerDevice):
         return "{}.{}".format(__name__, self._url)
 
     def __str__(self):
+        """To string."""
         return "<DlnaDmrDevice('{}')>".format(self._url)
