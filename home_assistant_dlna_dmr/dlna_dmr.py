@@ -263,6 +263,11 @@ class UpnpNotifyView(HomeAssistantView):
     @asyncio.coroutine
     def async_notify(self, request):
         """Callback method for NOTIFY requests."""
+        t_sid = request.headers.get('SID', 'missing')
+        _LOGGER.debug('%s.async_notify(): SID: %s, service: %s',
+                      self,
+                      t_sid,
+                      self._registered_services.get(t_sid))
 
         if 'SID' not in request.headers:
             return aiohttp.web.Response(status=422)
@@ -290,6 +295,8 @@ class UpnpNotifyView(HomeAssistantView):
         """
         Register a UpnpService under SID.
         """
+        _LOGGER.debug('%s.register_service(): SID: %s, service: %s',
+                      self, sid, service)
         if sid in self._registered_services:
             raise RuntimeError('SID {} already registered.'.format(sid))
 
@@ -598,15 +605,25 @@ class DlnaDmrDevice(MediaPlayerDevice):
     @property
     def supported_features(self):
         """Flag media player features that are supported."""
+        _LOGGER.debug('%s.supported_features()', self)
         supported_features = 0
 
         if not self._device:
             return supported_features
 
         rc_service = self._service('RC')
+        _LOGGER.debug('%s.supported_features(): rc_service: %s',
+                      self,
+                      rc_service)
         if rc_service:
+            _LOGGER.debug('%s.supported_features(): rc_service: %s, mute: %s',
+                          self,
+                          rc_service, rc_service.state_variable('Mute'))
             if rc_service.state_variable('Mute'):
                 supported_features |= SUPPORT_VOLUME_MUTE
+            _LOGGER.debug('%s.supported_features(): rc_service: %s, volume: %s',
+                          self,
+                          rc_service, rc_service.state_variable('Volume'))
             if rc_service.state_variable('Volume'):
                 supported_features |= SUPPORT_VOLUME_SET
 
@@ -649,6 +666,7 @@ class DlnaDmrDevice(MediaPlayerDevice):
     def volume_level(self, state_variable):
         """Volume level of the media player (0..1)."""
         # pylint: disable=arguments-differ
+        _LOGGER.debug('%s.volume_level(): state_var: %s', self, state_variable)
         value = state_variable.value
         if value is None:
             _LOGGER.debug('%s.volume_level(): Got no value', self)
@@ -663,6 +681,8 @@ class DlnaDmrDevice(MediaPlayerDevice):
     def async_set_volume_level(self, action, volume):
         """Set volume level, range 0..1."""
         # pylint: disable=arguments-differ
+        _LOGGER.debug('%s.async_set_volume_level(): action: %s, volume: %s',
+                      self, action, volume)
         argument = action.argument('DesiredVolume')
         state_variable = argument.related_state_variable
         min_ = state_variable.min_value or 0
@@ -679,6 +699,7 @@ class DlnaDmrDevice(MediaPlayerDevice):
     def is_volume_muted(self, state_variable):
         """Boolean if volume is currently muted."""
         # pylint: disable=arguments-differ
+        _LOGGER.debug('%s.is_volume_muted(): state_var: %s', self, state_variable)
         value = state_variable.value
         if value is None:
             _LOGGER.debug('%s.is_volume_muted(): Got no value', self)
@@ -691,6 +712,8 @@ class DlnaDmrDevice(MediaPlayerDevice):
     def async_mute_volume(self, action, mute):
         """Mute the volume."""
         # pylint: disable=arguments-differ
+        _LOGGER.debug('%s.async_set_volume_level(): action: %s, mute: %s',
+                      self, action, mute)
         desired_mute = bool(mute)
         yield from action.async_call(InstanceID=0,
                                      Channel='Master',
