@@ -3,6 +3,12 @@ DLNA Media Renderer component
 
 Note: this is a work in progress. Currently only tested with my own Samsung TV, YMMV! Please test and create issues.
 
+# Note: Currently being integrated into Home Assistant
+
+Currently, this module is currently being integrated into Home Assitant. See this [pull request](https://github.com/home-assistant/home-assistant/pull/14749).
+
+If you wish to help, please test the module (`dlna_dmr.py`) from that pull request and report any findings.
+
 ## Installation and configuration
 Symlink (or copy) `home_assistant_dlna_dmr/dlna_dmr.py` to your Home Assistant configuration folder (e.g., `~/.homeassistant/custom_components/media_player`):
 ```
